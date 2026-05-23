@@ -1,0 +1,32 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Custom theme configuration */
+@theme {
+  /* Responsive breakpoints (Tailwind v4 defaults) */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  /* Dark mode color palette */
+  --color-surface-primary: #0f172a;    /* slate-900 — main background */
+  --color-surface-secondary: #1e293b;  /* slate-800 — cards, sidebar */
+  --color-surface-tertiary: #334155;   /* slate-700 — hover states, borders */
+  --color-text-primary: #f1f5f9;       /* slate-100 — body text */
+  --color-text-secondary: #94a3b8;     /* slate-400 — muted text */
+  --color-text-accent: #38bdf8;        /* sky-400 — links, active states */
+  --color-border: #334155;             /* slate-700 */
+  --color-input-bg: #1e293b;           /* slate-800 — form inputs */
+  --color-success: #4ade80;            /* green-400 */
+  --color-error: #f87171;              /* red-400 */
+  --color-warning: #fbbf24;            /* amber-400 */
+}
+
+/* Apply dark theme globally */
+html,
+body {
+  background-color: var(--color-surface-primary);
+  color: var(--color-text-primary);
+}
