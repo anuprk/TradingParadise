@@ -2,10 +2,22 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  build: {
+    sourcemap: true,
+  },
+  plugins: [
+    react(),
+    tailwindcss(),
+    sentryVitePlugin({
+      org: 'tradingparadise',
+      project: 'tradingparadise-web',
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+    }),
+  ],
   server: {
     proxy: {
       '/api/yahoo': {
