@@ -470,7 +470,7 @@ export async function listJournalEntries(
 export async function filterJournalEntries(
   filters: JournalFilters,
   offset = 0,
-  limit = 20,
+  limit = 50,
 ): Promise<{ entries: TradeJournalEntry[]; total: number }> {
   let query = supabase
     .from('journal_entries')

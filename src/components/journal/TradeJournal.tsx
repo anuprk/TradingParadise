@@ -38,7 +38,7 @@ export default function TradeJournal() {
   const [groupBy, setGroupBy] = useState<'none' | 'stockSymbol' | 'expirationDate' | 'strategyId'>('none');
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / 20));
+  const totalPages = Math.max(1, Math.ceil(totalCount / 50));
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTargetId) return;

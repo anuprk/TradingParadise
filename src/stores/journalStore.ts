@@ -71,8 +71,8 @@ export const useJournalStore = create<JournalState>((set, get) => ({
     try {
       const { filters, currentPage } = get();
       const updatedFilters = { ...filters, planId };
-      const offset = (currentPage - 1) * 20;
-      const { entries, total } = await journalRepo.filterJournalEntries(updatedFilters, offset, 20);
+      const offset = (currentPage - 1) * 50;
+      const { entries, total } = await journalRepo.filterJournalEntries(updatedFilters, offset, 50);
       set({ entries, filters: updatedFilters, totalCount: total });
       // Also load stats
       get().loadStats(planId);
@@ -100,8 +100,8 @@ export const useJournalStore = create<JournalState>((set, get) => ({
       const id = await journalRepo.createJournalEntry(entry);
       const { filters, currentPage } = get();
       if (filters.planId) {
-        const offset = (currentPage - 1) * 20;
-        const { entries, total } = await journalRepo.filterJournalEntries(filters, offset, 20);
+        const offset = (currentPage - 1) * 50;
+        const { entries, total } = await journalRepo.filterJournalEntries(filters, offset, 50);
         set({ entries, totalCount: total });
       }
       return id;
@@ -119,8 +119,8 @@ export const useJournalStore = create<JournalState>((set, get) => ({
       await journalRepo.updateJournalEntry(id, changes);
       const { filters, currentPage } = get();
       if (filters.planId) {
-        const offset = (currentPage - 1) * 20;
-        const { entries, total } = await journalRepo.filterJournalEntries(filters, offset, 20);
+        const offset = (currentPage - 1) * 50;
+        const { entries, total } = await journalRepo.filterJournalEntries(filters, offset, 50);
         set({ entries, totalCount: total });
       }
     } catch (err) {
@@ -148,7 +148,7 @@ export const useJournalStore = create<JournalState>((set, get) => ({
   setFilters: async (filters) => {
     set({ isLoading: true, filters, currentPage: 1 });
     try {
-      const { entries, total } = await journalRepo.filterJournalEntries(filters, 0, 20);
+      const { entries, total } = await journalRepo.filterJournalEntries(filters, 0, 50);
       set({ entries, totalCount: total });
     } catch (err) {
       useAppStore.getState().addToast(
@@ -180,8 +180,8 @@ export const useJournalStore = create<JournalState>((set, get) => ({
     set({ isLoading: true, currentPage: page });
     try {
       const { filters } = get();
-      const offset = (page - 1) * 20;
-      const { entries, total } = await journalRepo.filterJournalEntries(filters, offset, 20);
+      const offset = (page - 1) * 50;
+      const { entries, total } = await journalRepo.filterJournalEntries(filters, offset, 50);
       set({ entries, totalCount: total });
     } catch (err) {
       useAppStore.getState().addToast(
