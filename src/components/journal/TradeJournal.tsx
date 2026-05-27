@@ -173,6 +173,9 @@ export default function TradeJournal() {
     const existing = debounceTimers.current.get(key);
     if (existing) clearTimeout(existing);
 
+    // Select fields save immediately, text/number fields debounce
+    const delay = (field === 'strategyId' || field === 'tradeStatus' || field === 'optionType' || field === 'direction') ? 0 : 800;
+
     const timer = setTimeout(async () => {
       debounceTimers.current.delete(key);
       const now = new Date();
@@ -274,7 +277,7 @@ export default function TradeJournal() {
       }
 
       await updateEntry(entryId, changes);
-    }, 800);
+    }, delay);
 
     debounceTimers.current.set(key, timer);
   }, [updateEntry]);
