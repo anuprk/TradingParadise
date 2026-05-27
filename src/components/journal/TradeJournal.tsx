@@ -114,7 +114,7 @@ export default function TradeJournal() {
     return Array.from(syms).sort();
   }, [entries]);
 
-  // Monthly stats for the performance banner
+  // Monthly stats for the performance banner — always based on current month, independent of status filter
   const monthlyStats = useMemo(() => {
     const now = new Date();
     const currentMonth = now.getMonth();
@@ -123,12 +123,15 @@ export default function TradeJournal() {
     currentWeekStart.setDate(now.getDate() - now.getDay());
     currentWeekStart.setHours(0, 0, 0, 0);
 
+    // Use all entries on the current page (they're already filtered by plan)
+    // Filter to current month based on open date
     const monthEntries = entries.filter((e) => {
       const d = e.openDate ? new Date(e.openDate) : null;
       return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
 
     const openTrades = monthEntries.filter((e) => e.tradeStatus === 'Open').length;
+    // Closed = everything that is NOT open (Closed, Expired, Assigned)
     const closedMonth = monthEntries.filter((e) => e.tradeStatus !== 'Open');
     const wins = closedMonth.filter((e) => e.winLoss === 'Win').length;
     const winRate = closedMonth.length > 0 ? (wins / closedMonth.length) * 100 : 0;
@@ -136,15 +139,17 @@ export default function TradeJournal() {
     const weeklyIncome = entries
       .filter((e) => {
         const cd = e.closeDate ? new Date(e.closeDate) : null;
-        return cd && cd >= currentWeekStart && e.profitLoss != null;
+        return cd && cd >= currentWeekStart && e.profitLoss != null && e.tradeStatus !== 'Open';
       })
       .reduce((sum, e) => sum + (e.profitLoss ?? 0), 0);
 
-    const totalPremiumReceived = monthEntries.reduce(
+    // Total premium received = sum of (premium * contracts * 100) for NOT open trades this month
+    const totalPremiumReceived = closedMonth.reduce(
       (sum, e) => sum + Math.abs(e.premium ?? 0) * (e.contracts ?? 1) * 100,
       0,
     );
 
+    // Total premium kept = sum of P/L for NOT open trades this month
     const totalPremiumKept = closedMonth.reduce((sum, e) => sum + (e.profitLoss ?? 0), 0);
     const premiumKeptPct = totalPremiumReceived > 0 ? (totalPremiumKept / totalPremiumReceived) * 100 : 0;
 
