@@ -107,10 +107,49 @@ export default function TradeJournal() {
     return { totalPL: stats.totalPL, avgPL, winRate, closedCount: stats.closedCount, monthlyPL: stats.monthlyPL, yearlyPL: stats.yearlyPL };
   }, [stats]);
 
-  // Sort years for display
-  const sortedYears = useMemo(() => {
-    return Object.keys(closedStats.yearlyPL).map(Number).sort((a, b) => b - a);
-  }, [closedStats.yearlyPL]);
+  // Unique symbols for filter dropdown
+  const uniqueSymbols = useMemo(() => {
+    const syms = new Set<string>();
+    entries.forEach((e) => { if (e.stockSymbol) syms.add(e.stockSymbol); });
+    return Array.from(syms).sort();
+  }, [entries]);
+
+  // Monthly stats for the performance banner
+  const monthlyStats = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const currentWeekStart = new Date(now);
+    currentWeekStart.setDate(now.getDate() - now.getDay());
+    currentWeekStart.setHours(0, 0, 0, 0);
+
+    const monthEntries = entries.filter((e) => {
+      const d = e.openDate ? new Date(e.openDate) : null;
+      return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+
+    const openTrades = monthEntries.filter((e) => e.tradeStatus === 'Open').length;
+    const closedMonth = monthEntries.filter((e) => e.tradeStatus !== 'Open');
+    const wins = closedMonth.filter((e) => e.winLoss === 'Win').length;
+    const winRate = closedMonth.length > 0 ? (wins / closedMonth.length) * 100 : 0;
+
+    const weeklyIncome = entries
+      .filter((e) => {
+        const cd = e.closeDate ? new Date(e.closeDate) : null;
+        return cd && cd >= currentWeekStart && e.profitLoss != null;
+      })
+      .reduce((sum, e) => sum + (e.profitLoss ?? 0), 0);
+
+    const totalPremiumReceived = monthEntries.reduce(
+      (sum, e) => sum + Math.abs(e.premium ?? 0) * (e.contracts ?? 1) * 100,
+      0,
+    );
+
+    const totalPremiumKept = closedMonth.reduce((sum, e) => sum + (e.profitLoss ?? 0), 0);
+    const premiumKeptPct = totalPremiumReceived > 0 ? (totalPremiumKept / totalPremiumReceived) * 100 : 0;
+
+    return { totalTrades: monthEntries.length, openTrades, winRate, weeklyIncome, totalPremiumReceived, totalPremiumKept, premiumKeptPct };
+  }, [entries]);
 
   const handleAssignStrategies = useCallback(async () => {
     const shortPut = strategies.find((s) => s.name.toLowerCase().includes('short put'));
@@ -258,44 +297,33 @@ export default function TradeJournal() {
 
   return (
     <div className="space-y-4">
-      {/* Performance Banner — closed trades only */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      {/* Monthly Performance Banner */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Total Trades</p>
-          <p className="text-lg font-bold text-text-primary">{totalCount}</p>
+          <p className="text-[10px] text-text-secondary uppercase">{monthName} Trades</p>
+          <p className="text-lg font-bold text-text-primary">{monthlyStats.totalTrades}</p>
         </div>
         <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Win Rate (Closed)</p>
-          <p className="text-lg font-bold text-text-primary">{closedStats.winRate.toFixed(1)}%</p>
+          <p className="text-[10px] text-text-secondary uppercase">Open Trades</p>
+          <p className="text-lg font-bold text-text-primary">{monthlyStats.openTrades}</p>
         </div>
         <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Total P/L (Closed)</p>
-          <p className={`text-lg font-bold ${closedStats.totalPL >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(closedStats.totalPL)}</p>
+          <p className="text-[10px] text-text-secondary uppercase">Win Rate</p>
+          <p className="text-lg font-bold text-text-primary">{monthlyStats.winRate.toFixed(1)}%</p>
         </div>
         <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">{monthName} {year}</p>
-          <p className={`text-lg font-bold ${closedStats.monthlyPL >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(closedStats.monthlyPL)}</p>
+          <p className="text-[10px] text-text-secondary uppercase">Weekly Income</p>
+          <p className={`text-lg font-bold ${monthlyStats.weeklyIncome >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(monthlyStats.weeklyIncome)}</p>
         </div>
         <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Avg P/L (Closed)</p>
-          <p className={`text-lg font-bold ${closedStats.avgPL >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(closedStats.avgPL)}</p>
+          <p className="text-[10px] text-text-secondary uppercase">Premium Received</p>
+          <p className="text-lg font-bold text-success">{formatCurrency(monthlyStats.totalPremiumReceived)}</p>
+        </div>
+        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
+          <p className="text-[10px] text-text-secondary uppercase">Premium Kept ({monthlyStats.premiumKeptPct.toFixed(0)}%)</p>
+          <p className={`text-lg font-bold ${monthlyStats.totalPremiumKept >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(monthlyStats.totalPremiumKept)}</p>
         </div>
       </div>
-
-      {/* Yearly P/L */}
-      {sortedYears.length > 0 && (
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          {sortedYears.map((yr) => {
-            const pl = closedStats.yearlyPL[yr] || 0;
-            return (
-              <div key={yr} className="bg-surface-tertiary rounded-lg p-2 text-center">
-                <p className="text-[10px] text-text-secondary uppercase">{yr}</p>
-                <p className={`text-sm font-bold ${pl >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(pl)}</p>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-text-primary">Trade Journal</h2>
@@ -321,7 +349,7 @@ export default function TradeJournal() {
 
       <JournalFilters
         strategies={strategies}
-        portfolios={portfolios}
+        symbols={uniqueSymbols}
         filters={filters}
         onFilterChange={setFilters}
       />

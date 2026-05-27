@@ -3,21 +3,14 @@ import Select from '../ui/Select';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import type { Strategy } from '../../types/tradingPlan';
-import type { Portfolio } from '../../types/portfolio';
 import type { JournalFilters as Filters } from '../../db/journalRepository';
 
 interface JournalFiltersProps {
   strategies: Strategy[];
-  portfolios: Portfolio[];
+  symbols: string[];
   filters: Filters;
   onFilterChange: (filters: Filters) => void;
 }
-
-const optionTypeOptions = [
-  { value: '', label: 'All' },
-  { value: 'Call', label: 'Call' },
-  { value: 'Put', label: 'Put' },
-];
 
 const tradeStatusOptions = [
   { value: '', label: 'All' },
@@ -35,7 +28,7 @@ const winLossOptions = [
 
 export default function JournalFilters({
   strategies,
-  portfolios,
+  symbols,
   filters,
   onFilterChange,
 }: JournalFiltersProps) {
@@ -51,9 +44,9 @@ export default function JournalFilters({
     ...strategies.map((s) => ({ value: s.id, label: s.name })),
   ];
 
-  const portfolioOptions = [
-    { value: '', label: 'All Accounts' },
-    ...portfolios.map((p) => ({ value: p.id, label: p.name })),
+  const symbolOptions = [
+    { value: '', label: 'All Symbols' },
+    ...symbols.map((s) => ({ value: s, label: s })),
   ];
 
   const clearFilters = () => {
@@ -69,10 +62,10 @@ export default function JournalFilters({
         onChange={(e) => update({ strategyId: e.target.value || undefined })}
       />
       <Select
-        label="Account"
-        options={portfolioOptions}
-        value={filters.portfolioId ?? ''}
-        onChange={(e) => update({ portfolioId: e.target.value || undefined })}
+        label="Symbol"
+        options={symbolOptions}
+        value={filters.stockSymbol ?? ''}
+        onChange={(e) => update({ stockSymbol: e.target.value || undefined })}
       />
       <Input
         label="From"
@@ -89,18 +82,6 @@ export default function JournalFilters({
         onChange={(e) =>
           update({ dateTo: e.target.value ? new Date(e.target.value) : undefined })
         }
-      />
-      <Input
-        label="Symbol"
-        placeholder="e.g. AAPL"
-        value={filters.stockSymbol ?? ''}
-        onChange={(e) => update({ stockSymbol: e.target.value || undefined })}
-      />
-      <Select
-        label="Option Type"
-        options={optionTypeOptions}
-        value={filters.optionType ?? ''}
-        onChange={(e) => update({ optionType: (e.target.value as Filters['optionType']) || undefined })}
       />
       <Select
         label="Status"
