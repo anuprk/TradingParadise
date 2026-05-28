@@ -4,6 +4,8 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { fetchStockQuotes, type StockQuote } from '../../utils/stockPrice';
 import { getHoldings, type PortfolioHolding } from '../../db/holdingsRepository';
+import { getTransactionsByPortfolioFiltered } from '../../db/transactionRepository';
+import type { PortfolioTransaction } from '../../types/transaction';
 
 interface DividendSummaryProps {
   portfolioId: string;
@@ -15,6 +17,7 @@ export default function DividendSummary({ portfolioId }: DividendSummaryProps) {
   const [holdings, setHoldings] = useState<PortfolioHolding[]>([]);
   const [quotes, setQuotes] = useState<Map<string, StockQuote>>(new Map());
   const [manualFreq, setManualFreq] = useState<Record<string, string>>({});
+  const [actualDividends, setActualDividends] = useState<PortfolioTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Load holdings from DB
@@ -27,6 +30,14 @@ export default function DividendSummary({ portfolioId }: DividendSummaryProps) {
       for (const holding of h) freqMap[holding.symbol] = holding.dividendFrequency;
       setManualFreq(freqMap);
     }).catch(() => {});
+  }, [portfolioId]);
+
+  // Load actual dividend transactions
+  useEffect(() => {
+    if (!portfolioId) return;
+    getTransactionsByPortfolioFiltered(portfolioId, { transactionType: 'Dividend' }, 0, 500)
+      .then((txns) => setActualDividends(txns))
+      .catch(() => {});
   }, [portfolioId]);
 
   const sortedHoldings = useMemo(
@@ -73,31 +84,74 @@ export default function DividendSummary({ portfolioId }: DividendSummaryProps) {
     return { totalAnnual, totalMonthly };
   }, [dividendHoldings]);
 
-  // Monthly calendar projection
+  // Monthly calendar: actual dividends for past/current months, projected for future
   const monthlyCalendar = useMemo(() => {
-    const calendar: { symbol: string; months: number[]; total: number; freq: string }[] = [];
-    const monthTotals = new Array(12).fill(0);
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0-indexed
+    const currentYear = now.getFullYear();
 
-    for (const d of dividendHoldings) {
-      const months = new Array(12).fill(0);
-      if (d.freq === 'monthly' || d.freq === 'weekly') {
-        for (let i = 0; i < 12; i++) months[i] = d.annualDiv / 12;
-      } else if (d.freq === 'quarterly') {
-        // Spread across Mar, Jun, Sep, Dec
-        months[2] = d.annualDiv / 4;
-        months[5] = d.annualDiv / 4;
-        months[8] = d.annualDiv / 4;
-        months[11] = d.annualDiv / 4;
-      } else {
-        // Yearly — December
-        months[11] = d.annualDiv;
-      }
-      for (let i = 0; i < 12; i++) monthTotals[i] += months[i];
-      calendar.push({ symbol: d.symbol, months, total: d.annualDiv, freq: d.freq });
+    // Build actual dividend map: symbol → month → total amount received
+    const actualMap = new Map<string, Map<number, number>>();
+    for (const txn of actualDividends) {
+      const d = new Date(txn.transactionDate);
+      if (d.getFullYear() !== currentYear) continue;
+      const month = d.getMonth();
+      if (!actualMap.has(txn.symbol)) actualMap.set(txn.symbol, new Map());
+      const symMap = actualMap.get(txn.symbol)!;
+      symMap.set(month, (symMap.get(month) || 0) + Math.abs(txn.amount));
     }
 
+    // Get all symbols: union of projected holdings and symbols with actual dividends
+    const allSymbols = new Set<string>();
+    for (const d of dividendHoldings) allSymbols.add(d.symbol);
+    for (const sym of actualMap.keys()) allSymbols.add(sym);
+
+    const calendar: { symbol: string; months: number[]; total: number; freq: string; isActual: boolean[] }[] = [];
+    const monthTotals = new Array(12).fill(0);
+
+    for (const symbol of allSymbols) {
+      const projected = dividendHoldings.find((d) => d.symbol === symbol);
+      const actualSymMap = actualMap.get(symbol);
+      const freq = projected?.freq || 'quarterly';
+      const months = new Array(12).fill(0);
+      const isActual = new Array(12).fill(false);
+
+      for (let i = 0; i < 12; i++) {
+        if (i <= currentMonth && actualSymMap?.has(i)) {
+          // Past or current month: use actual received amount
+          months[i] = actualSymMap.get(i)!;
+          isActual[i] = true;
+        } else if (i > currentMonth && projected) {
+          // Future month: use projection
+          if (freq === 'monthly' || freq === 'weekly') {
+            months[i] = projected.annualDiv / 12;
+          } else if (freq === 'quarterly') {
+            if (i === 2 || i === 5 || i === 8 || i === 11) months[i] = projected.annualDiv / 4;
+          } else {
+            if (i === 11) months[i] = projected.annualDiv;
+          }
+        } else if (i <= currentMonth && !actualSymMap?.has(i) && projected) {
+          // Past month with no actual data: show projected as fallback (dimmed)
+          if (freq === 'monthly' || freq === 'weekly') {
+            months[i] = projected.annualDiv / 12;
+          } else if (freq === 'quarterly') {
+            if (i === 2 || i === 5 || i === 8 || i === 11) months[i] = projected.annualDiv / 4;
+          } else {
+            if (i === 11) months[i] = projected.annualDiv;
+          }
+        }
+        monthTotals[i] += months[i];
+      }
+
+      const total = months.reduce((s, v) => s + v, 0);
+      if (total > 0) {
+        calendar.push({ symbol, months, total, freq, isActual });
+      }
+    }
+
+    calendar.sort((a, b) => b.total - a.total);
     return { calendar, monthTotals, grandTotal: monthTotals.reduce((s, v) => s + v, 0) };
-  }, [dividendHoldings]);
+  }, [dividendHoldings, actualDividends]);
 
   if (sortedHoldings.length === 0) {
     return <p className="text-sm text-text-secondary text-center py-4">No holdings to project dividends from.</p>;
@@ -175,7 +229,11 @@ export default function DividendSummary({ portfolioId }: DividendSummaryProps) {
 
       {/* Monthly Calendar */}
       {monthlyCalendar.calendar.length > 0 && (
-        <Card title="Monthly Dividend Calendar (Projected)">
+        <Card title="Monthly Dividend Calendar">
+          <p className="text-[10px] text-text-secondary mb-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-success mr-1 align-middle" /> Actual received
+            <span className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-1 ml-3 align-middle" /> Projected
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
@@ -198,7 +256,7 @@ export default function DividendSummary({ portfolioId }: DividendSummaryProps) {
                       }`}>{row.freq}</span>
                     </td>
                     {row.months.map((amt, idx) => (
-                      <td key={idx} className={`py-1.5 px-2 text-right ${amt > 0 ? 'text-success' : ''}`}>
+                      <td key={idx} className={`py-1.5 px-2 text-right ${amt > 0 ? (row.isActual[idx] ? 'text-success font-medium' : 'text-blue-400') : ''}`}>
                         {amt > 0 ? `$${amt.toFixed(0)}` : ''}
                       </td>
                     ))}
