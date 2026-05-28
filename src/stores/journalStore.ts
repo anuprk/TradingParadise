@@ -95,14 +95,14 @@ export const useJournalStore = create<JournalState>((set, get) => ({
       const currentMonthData = fullStats.monthlyBreakdown.find((m) => m.month === currentMonthKey);
       const monthlyWinRate = currentMonthData ? currentMonthData.winRate : 0;
 
-      // Compute weekly P/L: sum of P/L for trades closed this week
+      // Compute weekly P/L: sum of daily P/L entries from this calendar week (Sun-Sat)
       const weekStart = new Date(now);
       weekStart.setDate(now.getDate() - now.getDay());
       weekStart.setHours(0, 0, 0, 0);
       const weekStartKey = weekStart.toISOString().split('T')[0];
-      const weeklyPL = fullStats.weeklyPL
-        .filter((w) => w.weekStart >= weekStartKey)
-        .reduce((sum, w) => sum + w.pl, 0);
+      const weeklyPL = fullStats.dailyPL
+        .filter((d) => d.date >= weekStartKey)
+        .reduce((sum, d) => sum + d.pl, 0);
 
       set({
         stats: {

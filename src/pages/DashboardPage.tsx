@@ -251,14 +251,15 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
   const strategies = plan ? [...plan.coreStrategies, ...plan.speculativeStrategies] : [];
   const strategyNameMap = new Map(strategies.map((s) => [s.id, s.name]));
 
-  // Monthly income tracker (symbol × month) — only non-open trades
+  // Monthly income tracker (symbol × month) — only non-open trades with a close date
   const symbolMonthData = useMemo(() => {
     const symbolMap = new Map<string, Map<number, number>>();
     for (const e of entries) {
       if (e.tradeStatus === 'Open') continue;
+      if (!e.closeDate) continue;
       const pl = e.profitLoss ?? 0;
-      if (pl === 0 && !e.closeDate) continue;
-      const d = e.closeDate ? new Date(e.closeDate) : new Date(e.openDate);
+      if (pl === 0) continue;
+      const d = new Date(e.closeDate);
       if (d.getFullYear() !== currentYear) continue;
       const month = d.getMonth();
       if (!symbolMap.has(e.stockSymbol)) symbolMap.set(e.stockSymbol, new Map());
