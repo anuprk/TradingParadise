@@ -114,47 +114,28 @@ export default function TradeJournal() {
     return Array.from(syms).sort();
   }, [entries]);
 
-  // Monthly stats for the performance banner — always based on current month, independent of status filter
+  // Monthly stats for the performance banner — always based on closed trades from stats (independent of status filter)
   const monthlyStats = useMemo(() => {
+    // Open trades count from current page entries in current month
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    const currentWeekStart = new Date(now);
-    currentWeekStart.setDate(now.getDate() - now.getDay());
-    currentWeekStart.setHours(0, 0, 0, 0);
 
-    // Use all entries on the current page (they're already filtered by plan)
-    // Filter to current month based on open date
     const monthEntries = entries.filter((e) => {
       const d = e.openDate ? new Date(e.openDate) : null;
-      return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear && e.tradeStatus === 'Open';
     });
+    const openTrades = monthEntries.length;
 
-    const openTrades = monthEntries.filter((e) => e.tradeStatus === 'Open').length;
-    // Closed = everything that is NOT open (Closed, Expired, Assigned)
-    const closedMonth = monthEntries.filter((e) => e.tradeStatus !== 'Open');
-    const wins = closedMonth.filter((e) => e.winLoss === 'Win').length;
-    const winRate = closedMonth.length > 0 ? (wins / closedMonth.length) * 100 : 0;
-
-    const weeklyIncome = entries
-      .filter((e) => {
-        const cd = e.closeDate ? new Date(e.closeDate) : null;
-        return cd && cd >= currentWeekStart && e.profitLoss != null && e.tradeStatus !== 'Open';
-      })
-      .reduce((sum, e) => sum + (e.profitLoss ?? 0), 0);
-
-    // Total premium received = sum of (premium * contracts * 100) for NOT open trades this month
-    const totalPremiumReceived = closedMonth.reduce(
-      (sum, e) => sum + Math.abs(e.premium ?? 0) * (e.contracts ?? 1) * 100,
-      0,
-    );
-
-    // Total premium kept = sum of P/L for NOT open trades this month
-    const totalPremiumKept = closedMonth.reduce((sum, e) => sum + (e.profitLoss ?? 0), 0);
+    // All other metrics come from stats (computed from ALL non-open trades across all pages)
+    const winRate = stats.monthlyWinRate;
+    const weeklyIncome = stats.weeklyPL;
+    const totalPremiumReceived = stats.monthlyPremiumReceived;
+    const totalPremiumKept = stats.monthlyPL;
     const premiumKeptPct = totalPremiumReceived > 0 ? (totalPremiumKept / totalPremiumReceived) * 100 : 0;
 
-    return { totalTrades: monthEntries.length, openTrades, winRate, weeklyIncome, totalPremiumReceived, totalPremiumKept, premiumKeptPct };
-  }, [entries]);
+    return { totalTrades: stats.monthlyClosedCount, openTrades, winRate, weeklyIncome, totalPremiumReceived, totalPremiumKept, premiumKeptPct };
+  }, [entries, stats]);
 
   const handleAssignStrategies = useCallback(async () => {
     const shortPut = strategies.find((s) => s.name.toLowerCase().includes('short put'));

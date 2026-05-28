@@ -344,6 +344,8 @@ export async function getJournalStats(planId: string): Promise<{
   lossCount: number;
   closedCount: number;
   monthlyPL: number;
+  monthlyPremiumReceived: number;
+  monthlyClosedCount: number;
   yearlyPL: Record<number, number>;
   dailyPL: DailyPL[];
   weeklyPL: WeeklyPL[];
@@ -353,7 +355,7 @@ export async function getJournalStats(planId: string): Promise<{
 }> {
   const { data, error } = await supabase
     .from('journal_entries')
-    .select('profit_loss, win_loss, close_date, trade_status, campaign')
+    .select('profit_loss, win_loss, close_date, trade_status, campaign, premium, contracts')
     .eq('plan_id', planId)
     .neq('trade_status', 'Open');
 
@@ -368,6 +370,8 @@ export async function getJournalStats(planId: string): Promise<{
   let winCount = 0;
   let lossCount = 0;
   let monthlyPL = 0;
+  let monthlyPremiumReceived = 0;
+  let monthlyClosedCount = 0;
   const yearlyPL: Record<number, number> = {};
   const dailyMap = new Map<string, { pl: number; wins: number; losses: number }>();
   const weeklyMap = new Map<string, { pl: number; wins: number; losses: number; trades: number }>();
@@ -388,7 +392,13 @@ export async function getJournalStats(planId: string): Promise<{
       const closeYear = closeDate.getFullYear();
       const closeMonth = closeDate.getMonth();
 
-      if (closeMonth === currentMonth && closeYear === currentYear) monthlyPL += pl;
+      if (closeMonth === currentMonth && closeYear === currentYear) {
+        monthlyPL += pl;
+        monthlyClosedCount++;
+        const premium = row.premium != null ? Math.abs(Number(row.premium)) : 0;
+        const contracts = row.contracts != null ? Number(row.contracts) : 1;
+        monthlyPremiumReceived += premium * contracts * 100;
+      }
       yearlyPL[closeYear] = (yearlyPL[closeYear] || 0) + pl;
 
       // Daily (current month)
@@ -438,7 +448,7 @@ export async function getJournalStats(planId: string): Promise<{
   const ML = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   return {
-    totalPL, winCount, lossCount, closedCount: rows.length, monthlyPL, yearlyPL,
+    totalPL, winCount, lossCount, closedCount: rows.length, monthlyPL, monthlyPremiumReceived, monthlyClosedCount, yearlyPL,
     dailyPL: Array.from(dailyMap.entries()).map(([date, d]) => ({ date, ...d })).sort((a, b) => a.date.localeCompare(b.date)),
     weeklyPL: Array.from(weeklyMap.entries()).map(([weekStart, w]) => ({ weekStart, ...w })).sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
     monthlyBreakdown: Array.from(monthlyMap.entries()).map(([month, m]) => ({ month, label: ML[parseInt(month.split('-')[1]) - 1], ...m, winRate: m.trades > 0 ? (m.wins / m.trades) * 100 : 0 })).sort((a, b) => a.month.localeCompare(b.month)),

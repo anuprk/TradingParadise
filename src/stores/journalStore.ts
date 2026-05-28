@@ -23,7 +23,7 @@ interface JournalState {
   isLoading: boolean;
   totalCount: number;
   currentPage: number;
-  stats: { totalPL: number; winCount: number; lossCount: number; closedCount: number; monthlyPL: number; yearlyPL: Record<number, number> };
+  stats: { totalPL: number; winCount: number; lossCount: number; closedCount: number; monthlyPL: number; yearlyPL: Record<number, number>; monthlyWinRate: number; weeklyPL: number; monthlyPremiumReceived: number; monthlyClosedCount: number };
 
   loadEntries: (planId: string) => Promise<void>;
   loadStats: (planId: string) => Promise<void>;
@@ -64,7 +64,7 @@ export const useJournalStore = create<JournalState>((set, get) => ({
   isLoading: false,
   totalCount: 0,
   currentPage: 1,
-  stats: { totalPL: 0, winCount: 0, lossCount: 0, closedCount: 0, monthlyPL: 0, yearlyPL: {} },
+  stats: { totalPL: 0, winCount: 0, lossCount: 0, closedCount: 0, monthlyPL: 0, yearlyPL: {}, monthlyWinRate: 0, weeklyPL: 0, monthlyPremiumReceived: 0, monthlyClosedCount: 0 },
 
   loadEntries: async (planId) => {
     set({ isLoading: true });
@@ -88,8 +88,36 @@ export const useJournalStore = create<JournalState>((set, get) => ({
 
   loadStats: async (planId) => {
     try {
-      const stats = await journalRepo.getJournalStats(planId);
-      set({ stats });
+      const fullStats = await journalRepo.getJournalStats(planId);
+      // Compute monthly win rate from monthlyBreakdown for current month
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const currentMonthData = fullStats.monthlyBreakdown.find((m) => m.month === currentMonthKey);
+      const monthlyWinRate = currentMonthData ? currentMonthData.winRate : 0;
+
+      // Compute weekly P/L: sum of P/L for trades closed this week
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay());
+      weekStart.setHours(0, 0, 0, 0);
+      const weekStartKey = weekStart.toISOString().split('T')[0];
+      const weeklyPL = fullStats.weeklyPL
+        .filter((w) => w.weekStart >= weekStartKey)
+        .reduce((sum, w) => sum + w.pl, 0);
+
+      set({
+        stats: {
+          totalPL: fullStats.totalPL,
+          winCount: fullStats.winCount,
+          lossCount: fullStats.lossCount,
+          closedCount: fullStats.closedCount,
+          monthlyPL: fullStats.monthlyPL,
+          yearlyPL: fullStats.yearlyPL,
+          monthlyWinRate,
+          weeklyPL,
+          monthlyPremiumReceived: fullStats.monthlyPremiumReceived,
+          monthlyClosedCount: fullStats.monthlyClosedCount,
+        },
+      });
     } catch {
       // Stats are non-critical, don't show error
     }
