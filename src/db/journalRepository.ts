@@ -355,7 +355,7 @@ export async function getJournalStats(planId: string): Promise<{
 }> {
   const { data, error } = await supabase
     .from('journal_entries')
-    .select('profit_loss, win_loss, close_date, trade_status, campaign, premium, contracts')
+    .select('profit_loss, win_loss, close_date, open_date, trade_status, campaign, premium, contracts')
     .eq('plan_id', planId)
     .neq('trade_status', 'Open');
 
@@ -387,8 +387,9 @@ export async function getJournalStats(planId: string): Promise<{
     if (isWin) winCount++;
     if (isLoss) lossCount++;
 
-    if (row.close_date) {
-      const closeDate = new Date((row.close_date as string) + 'T12:00:00');
+    const dateStr = (row.close_date || row.open_date) as string | null;
+    if (dateStr) {
+      const closeDate = new Date(dateStr + 'T12:00:00');
       const closeYear = closeDate.getFullYear();
       const closeMonth = closeDate.getMonth();
 

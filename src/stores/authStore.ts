@@ -76,15 +76,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Force logout if app version changed (new deployment)
     const storedVersion = localStorage.getItem(APP_VERSION_KEY);
     const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '';
-    if (storedVersion && currentVersion && storedVersion !== currentVersion) {
+    if (currentVersion && storedVersion !== currentVersion) {
       localStorage.setItem(APP_VERSION_KEY, currentVersion);
-      await supabase.auth.signOut();
-      set({ user: null, session: null, isLoading: false });
-      clearAppData();
-      return;
-    }
-    if (currentVersion) {
-      localStorage.setItem(APP_VERSION_KEY, currentVersion);
+      // Version mismatch (or first time seeing version check) — force sign out
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        await supabase.auth.signOut();
+        set({ user: null, session: null, isLoading: false });
+        clearAppData();
+        return;
+      }
     }
 
     try {
