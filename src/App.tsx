@@ -6,21 +6,46 @@ import AppShell from './components/layout/AppShell';
 import ReminderNotification from './components/reminders/ReminderNotification';
 import { useAuthStore } from './stores/authStore';
 
+/**
+ * Wrapper around lazy() that retries on chunk load failure by reloading the page.
+ * This handles the case where a new deploy invalidates old chunk filenames.
+ */
+function lazyWithRetry(importFn: () => Promise<{ default: React.ComponentType }>) {
+  return lazy(async () => {
+    try {
+      return await importFn();
+    } catch (error) {
+      // If chunk failed to load, reload the page to get fresh index.html
+      const msg = error instanceof Error ? error.message.toLowerCase() : '';
+      if (
+        msg.includes('dynamically imported module') ||
+        msg.includes('loading chunk') ||
+        msg.includes('failed to fetch')
+      ) {
+        window.location.reload();
+        // Return a dummy component while reload happens
+        return { default: () => null };
+      }
+      throw error;
+    }
+  });
+}
+
 // Lazy-loaded page components (route-based code splitting)
-const DashboardPage = lazy(() => import('./pages/DashboardPage'));
-const PlanEditorPage = lazy(() => import('./pages/PlanEditorPage'));
-const PlansListPage = lazy(() => import('./pages/PlansListPage'));
-const PlanDetailPage = lazy(() => import('./pages/PlanDetailPage'));
-const JournalPage = lazy(() => import('./pages/JournalPage'));
-const TradeEntryPage = lazy(() => import('./pages/TradeEntryPage'));
-const PortfolioPage = lazy(() => import('./pages/PortfolioPage'));
-const PortfolioDashboardPage = lazy(() => import('./pages/PortfolioDashboardPage'));
-const RemindersPage = lazy(() => import('./pages/RemindersPage'));
-const DailyNotesPage = lazy(() => import('./pages/DailyNotesPage'));
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const SignupPage = lazy(() => import('./pages/SignupPage'));
-const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
-const UpdatePasswordPage = lazy(() => import('./pages/UpdatePasswordPage'));
+const DashboardPage = lazyWithRetry(() => import('./pages/DashboardPage'));
+const PlanEditorPage = lazyWithRetry(() => import('./pages/PlanEditorPage'));
+const PlansListPage = lazyWithRetry(() => import('./pages/PlansListPage'));
+const PlanDetailPage = lazyWithRetry(() => import('./pages/PlanDetailPage'));
+const JournalPage = lazyWithRetry(() => import('./pages/JournalPage'));
+const TradeEntryPage = lazyWithRetry(() => import('./pages/TradeEntryPage'));
+const PortfolioPage = lazyWithRetry(() => import('./pages/PortfolioPage'));
+const PortfolioDashboardPage = lazyWithRetry(() => import('./pages/PortfolioDashboardPage'));
+const RemindersPage = lazyWithRetry(() => import('./pages/RemindersPage'));
+const DailyNotesPage = lazyWithRetry(() => import('./pages/DailyNotesPage'));
+const LoginPage = lazyWithRetry(() => import('./pages/LoginPage'));
+const SignupPage = lazyWithRetry(() => import('./pages/SignupPage'));
+const ResetPasswordPage = lazyWithRetry(() => import('./pages/ResetPasswordPage'));
+const UpdatePasswordPage = lazyWithRetry(() => import('./pages/UpdatePasswordPage'));
 
 function LoadingFallback() {
   return (
