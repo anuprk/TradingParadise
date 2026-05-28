@@ -8,6 +8,10 @@ import { useJournalStore } from './journalStore';
 import { useReminderStore } from './reminderStore';
 import { useTransactionStore } from './transactionStore';
 
+declare const __APP_VERSION__: string;
+
+const APP_VERSION_KEY = 'app_version';
+
 function mapAuthError(error: AuthError): string {
   const msg = error.message;
 
@@ -68,6 +72,21 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   initialize: async () => {
     set({ isLoading: true });
+
+    // Force logout if app version changed (new deployment)
+    const storedVersion = localStorage.getItem(APP_VERSION_KEY);
+    const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '';
+    if (storedVersion && currentVersion && storedVersion !== currentVersion) {
+      localStorage.setItem(APP_VERSION_KEY, currentVersion);
+      await supabase.auth.signOut();
+      set({ user: null, session: null, isLoading: false });
+      clearAppData();
+      return;
+    }
+    if (currentVersion) {
+      localStorage.setItem(APP_VERSION_KEY, currentVersion);
+    }
+
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error) {

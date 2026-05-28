@@ -43,12 +43,20 @@ export function useJournal() {
     getSummary,
   } = useJournalStore();
 
-  // Load entries when planId changes
+  // Load entries when planId changes or component mounts
   useEffect(() => {
     if (activePlanId) {
       loadEntries(activePlanId);
     }
   }, [activePlanId, loadEntries]);
+
+  // Force reload when hook mounts (handles navigation back to journal)
+  useEffect(() => {
+    if (activePlanId) {
+      loadEntries(activePlanId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const applyFilters = useCallback(
     async (newFilters: JournalFilters) => {
