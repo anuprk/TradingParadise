@@ -5,6 +5,15 @@ import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
 import StrategyImporter from './StrategyImporter';
+import PlanComplianceDashboard from './PlanComplianceDashboard';
+import GoalsSection from './GoalsSection';
+import GreeksSection from './GreeksSection';
+import RiskManagementSection from './RiskManagementSection';
+import TradeRulesSection from './TradeRulesSection';
+import DailyManagementSection from './DailyManagementSection';
+import MarketRegimeSection from './MarketRegimeSection';
+import AccountSizingSection from './AccountSizingSection';
+import { useTradeMonitor } from '../../hooks/useTradeMonitor';
 import { formatCurrency, formatPercentage, formatProfitLoss } from '../../utils/formatters';
 import { filterJournalEntries } from '../../db/journalRepository';
 import type {
@@ -19,11 +28,28 @@ interface PlanViewerProps {
 
 export default function PlanViewer({ planId }: PlanViewerProps) {
   const [activeSection, setActiveSection] = useState(PLAN_SECTIONS[0].id);
-  const { currentPlan, isLoading, loadPlan } = usePlanStore();
+  const [isEditing, setIsEditing] = useState(false);
+  const { currentPlan, isLoading, isDirty, loadPlan, updatePlan, savePlan } = usePlanStore();
+
+  // Activate trade monitoring for compliance notifications
+  useTradeMonitor(planId);
 
   useEffect(() => {
     loadPlan(planId);
   }, [planId, loadPlan]);
+
+  const handleSave = useCallback(async () => {
+    await savePlan();
+    setIsEditing(false);
+  }, [savePlan]);
+
+  const handleCancelEdit = useCallback(() => {
+    if (isDirty) {
+      // Reload to discard changes
+      loadPlan(planId);
+    }
+    setIsEditing(false);
+  }, [isDirty, loadPlan, planId]);
 
   if (isLoading) {
     return (
@@ -62,10 +88,31 @@ export default function PlanViewer({ planId }: PlanViewerProps) {
               {currentPlan.author} · {currentPlan.year}
             </p>
           </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isEditing ? (
+              <>
+                <Button variant="secondary" size="sm" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSave} disabled={!isDirty}>
+                  Save Changes
+                </Button>
+              </>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
+                Edit Plan
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="bg-surface-secondary rounded-lg shadow border border-border p-6">
-          <SectionContent plan={currentPlan} activeSection={activeSection} />
+          <SectionContent
+            plan={currentPlan}
+            activeSection={activeSection}
+            isEditing={isEditing}
+            onUpdatePlan={updatePlan}
+          />
         </div>
       </main>
     </div>
@@ -74,24 +121,50 @@ export default function PlanViewer({ planId }: PlanViewerProps) {
 
 /* ── Section Router ──────────────────────────────────────────── */
 
-function SectionContent({ plan, activeSection }: { plan: TradingPlan; activeSection: string }) {
+function SectionContent({
+  plan,
+  activeSection,
+  isEditing,
+  onUpdatePlan,
+}: {
+  plan: TradingPlan;
+  activeSection: string;
+  isEditing: boolean;
+  onUpdatePlan: (changes: Partial<TradingPlan>) => void;
+}) {
   switch (activeSection) {
+    case 'compliance':
+      return <PlanComplianceDashboard plan={plan} />;
     case 'metadata-goals':
-      return <GoalsView plan={plan} />;
+      return isEditing
+        ? <GoalsSection goals={plan.goals} onChange={(goals) => onUpdatePlan({ goals })} />
+        : <GoalsView plan={plan} />;
     case 'greeks-targets':
-      return <GreeksView plan={plan} />;
+      return isEditing
+        ? <GreeksSection greeksTargets={plan.greeksTargets} onChange={(greeksTargets) => onUpdatePlan({ greeksTargets })} />
+        : <GreeksView plan={plan} />;
     case 'risk-management':
-      return <RiskManagementView plan={plan} />;
+      return isEditing
+        ? <RiskManagementSection riskManagement={plan.riskManagement} onChange={(riskManagement) => onUpdatePlan({ riskManagement })} />
+        : <RiskManagementView plan={plan} />;
     case 'trade-rules':
-      return <TradeRulesView plan={plan} />;
+      return isEditing
+        ? <TradeRulesSection tradeRules={plan.tradeRules} onChange={(tradeRules) => onUpdatePlan({ tradeRules })} />
+        : <TradeRulesView plan={plan} />;
     case 'daily-management':
-      return <DailyManagementView plan={plan} />;
+      return isEditing
+        ? <DailyManagementSection dailyManagement={plan.dailyManagement} onChange={(dailyManagement) => onUpdatePlan({ dailyManagement })} />
+        : <DailyManagementView plan={plan} />;
     case 'vacation-rules':
       return <VacationRulesView plan={plan} />;
     case 'market-regime':
-      return <MarketRegimeView plan={plan} />;
+      return isEditing
+        ? <MarketRegimeSection marketRegimes={plan.marketRegimes} onChange={(marketRegimes) => onUpdatePlan({ marketRegimes })} />
+        : <MarketRegimeView plan={plan} />;
     case 'account-sizing':
-      return <AccountSizingView plan={plan} />;
+      return isEditing
+        ? <AccountSizingSection accountSizing={plan.accountSizing} onChange={(accountSizing) => onUpdatePlan({ accountSizing })} />
+        : <AccountSizingView plan={plan} />;
     case 'core-strategies':
       return <StrategiesView strategies={plan.coreStrategies} title="Core Strategies" planId={plan.id} />;
     case 'speculative-strategies':

@@ -4,7 +4,7 @@ import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
 import NotesEditor from '../notes/NotesEditor';
-import type { TradeJournalEntry, OptionType, TradeDirection, TradeStatus } from '../../types/journal';
+import type { TradeJournalEntry, InstrumentType, OptionType, TradeDirection, TradeStatus } from '../../types/journal';
 import type { Strategy } from '../../types/tradingPlan';
 import type { Portfolio } from '../../types/portfolio';
 import { useJournal } from '../../hooks/useJournal';
@@ -44,6 +44,16 @@ const STATUS_OPTIONS = [
   { value: 'Assigned', label: 'Assigned' },
 ];
 
+const INSTRUMENT_TYPE_OPTIONS = [
+  { value: 'Option', label: 'Option' },
+  { value: 'Stock', label: 'Stock' },
+];
+
+const STOCK_STATUS_OPTIONS = [
+  { value: 'Open', label: 'Open' },
+  { value: 'Closed', label: 'Closed' },
+];
+
 function toDateInputValue(d: Date | string | undefined): string {
   if (!d) return '';
   const date = typeof d === 'string' ? new Date(d) : d;
@@ -52,6 +62,7 @@ function toDateInputValue(d: Date | string | undefined): string {
 }
 
 interface FormData {
+  instrumentType: InstrumentType;
   stockSymbol: string;
   openDate: string;
   expirationDate: string;
@@ -70,11 +81,13 @@ interface FormData {
   strategyId: string;
   portfolioId: string;
   notes: string;
+  quantity: string;
 }
 
 function buildInitialForm(entry?: TradeJournalEntry): FormData {
   if (entry) {
     return {
+      instrumentType: entry.instrumentType ?? 'Option',
       stockSymbol: entry.stockSymbol,
       openDate: toDateInputValue(entry.openDate),
       expirationDate: toDateInputValue(entry.expirationDate),
@@ -93,9 +106,11 @@ function buildInitialForm(entry?: TradeJournalEntry): FormData {
       strategyId: entry.strategyId,
       portfolioId: entry.portfolioId,
       notes: entry.notes ?? '',
+      quantity: String(entry.quantity ?? 0),
     };
   }
   return {
+    instrumentType: 'Option',
     stockSymbol: '',
     openDate: '',
     expirationDate: '',
@@ -114,6 +129,7 @@ function buildInitialForm(entry?: TradeJournalEntry): FormData {
     strategyId: '',
     portfolioId: '',
     notes: '',
+    quantity: '',
   };
 }
 
@@ -123,16 +139,28 @@ interface ValidationErrors {
 
 function validate(form: FormData): ValidationErrors {
   const errors: ValidationErrors = {};
-  if (!form.stockSymbol.trim()) errors.stockSymbol = 'Stock symbol is required';
+  const isStock = form.instrumentType === 'Stock';
+
+  if (!form.stockSymbol.trim()) errors.stockSymbol = 'Symbol is required';
   if (!form.openDate) errors.openDate = 'Open date is required';
-  if (!form.expirationDate) errors.expirationDate = 'Expiration date is required';
-  if (!form.strikePrice || Number(form.strikePrice) <= 0) errors.strikePrice = 'Strike price must be > 0';
-  if (!form.premium || Number(form.premium) < 0) errors.premium = 'Premium is required';
-  if (!form.stockPriceDOC || Number(form.stockPriceDOC) <= 0) errors.stockPriceDOC = 'Stock price DOC is required';
-  if (!form.cashReserve || Number(form.cashReserve) < 0) errors.cashReserve = 'Cash reserve is required';
+  if (!form.stockPriceDOC || Number(form.stockPriceDOC) <= 0) {
+    errors.stockPriceDOC = isStock ? 'Entry price is required' : 'Stock price DOC is required';
+  }
   if (!form.fees && form.fees !== '0') errors.fees = 'Fees is required';
   if (!form.strategyId) errors.strategyId = 'Strategy is required';
   if (!form.portfolioId) errors.portfolioId = 'Portfolio is required';
+
+  if (isStock) {
+    // Stock-specific validation
+    if (!form.quantity || Number(form.quantity) <= 0) errors.quantity = 'Number of shares is required';
+  } else {
+    // Option-specific validation
+    if (!form.expirationDate) errors.expirationDate = 'Expiration date is required';
+    if (!form.strikePrice || Number(form.strikePrice) <= 0) errors.strikePrice = 'Strike price must be > 0';
+    if (!form.premium || Number(form.premium) < 0) errors.premium = 'Premium is required';
+    if (!form.cashReserve || Number(form.cashReserve) < 0) errors.cashReserve = 'Cash reserve is required';
+  }
+
   return errors;
 }
 
@@ -175,6 +203,7 @@ export default function TradeEntryForm({
   // Build a partial entry from form data for auto-calculation
   const partialEntry = useMemo((): Partial<TradeJournalEntry> => {
     return {
+      instrumentType: form.instrumentType,
       openDate: form.openDate ? new Date(form.openDate) : undefined,
       expirationDate: form.expirationDate ? new Date(form.expirationDate) : undefined,
       optionType: form.optionType,
@@ -183,14 +212,16 @@ export default function TradeEntryForm({
       strikePrice: form.strikePrice ? Number(form.strikePrice) : undefined,
       premium: form.premium ? Number(form.premium) : undefined,
       exitPrice: form.exitPrice ? Number(form.exitPrice) : undefined,
+      stockPriceDOC: form.stockPriceDOC ? Number(form.stockPriceDOC) : undefined,
       cashReserve: form.cashReserve ? Number(form.cashReserve) : undefined,
       marginCashReserve: form.marginCashReserve ? Number(form.marginCashReserve) : undefined,
       fees: form.fees ? Number(form.fees) : 0,
       closeDate: form.closeDate ? new Date(form.closeDate) : undefined,
+      quantity: form.quantity ? Number(form.quantity) : undefined,
     };
-  }, [form.openDate, form.expirationDate, form.optionType, form.direction, form.tradeStatus,
-      form.strikePrice, form.premium, form.exitPrice, form.cashReserve,
-      form.marginCashReserve, form.fees, form.closeDate]);
+  }, [form.instrumentType, form.openDate, form.expirationDate, form.optionType, form.direction,
+      form.tradeStatus, form.strikePrice, form.premium, form.exitPrice, form.stockPriceDOC,
+      form.cashReserve, form.marginCashReserve, form.fees, form.closeDate, form.quantity]);
 
   const computed = useMemo(() => autoCalculate(partialEntry), [autoCalculate, partialEntry]);
 
@@ -213,22 +244,26 @@ export default function TradeEntryForm({
     }
 
     const now = new Date();
+    const isStock = form.instrumentType === 'Stock';
     const journalEntry: TradeJournalEntry = {
       id: entry?.id ?? uuidv4(),
+      instrumentType: form.instrumentType,
       stockSymbol: form.stockSymbol.trim().toUpperCase(),
+      campaign: '',
       openDate: new Date(form.openDate),
-      expirationDate: new Date(form.expirationDate),
+      expirationDate: isStock ? new Date(form.openDate) : new Date(form.expirationDate),
       optionType: form.optionType,
       direction: form.direction,
       stockPriceDOC: Number(form.stockPriceDOC),
       dte: computed.dte ?? 0,
       ditc: computed.ditc ?? 0,
       currentStockPrice: form.currentStockPrice ? Number(form.currentStockPrice) : undefined,
-      breakEvenPrice: computed.breakEvenPrice ?? 0,
-      strikePrice: Number(form.strikePrice),
-      premium: Number(form.premium),
-      contracts: 1,
-      cashReserve: Number(form.cashReserve),
+      breakEvenPrice: computed.breakEvenPrice ?? (isStock ? Number(form.stockPriceDOC) : 0),
+      strikePrice: isStock ? 0 : Number(form.strikePrice),
+      premium: isStock ? 0 : Number(form.premium),
+      contracts: isStock ? 0 : 1,
+      quantity: isStock ? Number(form.quantity) : 0,
+      cashReserve: isStock ? Number(form.stockPriceDOC) * Number(form.quantity || 0) : Number(form.cashReserve),
       marginCashReserve: form.marginCashReserve ? Number(form.marginCashReserve) : undefined,
       fees: Number(form.fees),
       exitPrice: form.exitPrice ? Number(form.exitPrice) : undefined,
@@ -256,25 +291,41 @@ export default function TradeEntryForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6" data-testid="trade-entry-form">
+      {/* Instrument Type */}
+      <fieldset>
+        <legend className="text-lg font-semibold text-text-primary mb-3">Instrument Type</legend>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Select
+            label="Type"
+            name="instrumentType"
+            value={form.instrumentType}
+            onChange={handleChange}
+            options={INSTRUMENT_TYPE_OPTIONS}
+          />
+        </div>
+      </fieldset>
+
       {/* Basic Info */}
       <fieldset>
         <legend className="text-lg font-semibold text-text-primary mb-3">Basic Info</legend>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Input
-            label="Stock Symbol"
+            label={form.instrumentType === 'Stock' ? 'Symbol' : 'Stock Symbol'}
             name="stockSymbol"
             value={form.stockSymbol}
             onChange={handleChange}
             error={errors.stockSymbol}
             placeholder="e.g. AAPL"
           />
-          <Select
-            label="Option Type"
-            name="optionType"
-            value={form.optionType}
-            onChange={handleChange}
-            options={OPTION_TYPE_OPTIONS}
-          />
+          {form.instrumentType === 'Option' && (
+            <Select
+              label="Option Type"
+              name="optionType"
+              value={form.optionType}
+              onChange={handleChange}
+              options={OPTION_TYPE_OPTIONS}
+            />
+          )}
           <Select
             label="Direction"
             name="direction"
@@ -287,8 +338,20 @@ export default function TradeEntryForm({
             name="tradeStatus"
             value={form.tradeStatus}
             onChange={handleChange}
-            options={STATUS_OPTIONS}
+            options={form.instrumentType === 'Stock' ? STOCK_STATUS_OPTIONS : STATUS_OPTIONS}
           />
+          {form.instrumentType === 'Stock' && (
+            <Input
+              label="Shares"
+              name="quantity"
+              type="number"
+              step="1"
+              value={form.quantity}
+              onChange={handleChange}
+              error={errors.quantity}
+              placeholder="e.g. 100"
+            />
+          )}
         </div>
       </fieldset>
 
@@ -304,14 +367,16 @@ export default function TradeEntryForm({
             onChange={handleChange}
             error={errors.openDate}
           />
-          <Input
-            label="Expiration Date"
-            name="expirationDate"
-            type="date"
-            value={form.expirationDate}
-            onChange={handleChange}
-            error={errors.expirationDate}
-          />
+          {form.instrumentType === 'Option' && (
+            <Input
+              label="Expiration Date"
+              name="expirationDate"
+              type="date"
+              value={form.expirationDate}
+              onChange={handleChange}
+              error={errors.expirationDate}
+            />
+          )}
           <Input
             label="Close Date"
             name="closeDate"
@@ -326,24 +391,28 @@ export default function TradeEntryForm({
       <fieldset>
         <legend className="text-lg font-semibold text-text-primary mb-3">Pricing</legend>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Input
-            label="Strike Price"
-            name="strikePrice"
-            type="number"
-            step="0.01"
-            value={form.strikePrice}
-            onChange={handleChange}
-            error={errors.strikePrice}
-          />
-          <Input
-            label="Premium"
-            name="premium"
-            type="number"
-            step="0.01"
-            value={form.premium}
-            onChange={handleChange}
-            error={errors.premium}
-          />
+          {form.instrumentType === 'Option' && (
+            <Input
+              label="Strike Price"
+              name="strikePrice"
+              type="number"
+              step="0.01"
+              value={form.strikePrice}
+              onChange={handleChange}
+              error={errors.strikePrice}
+            />
+          )}
+          {form.instrumentType === 'Option' && (
+            <Input
+              label="Premium"
+              name="premium"
+              type="number"
+              step="0.01"
+              value={form.premium}
+              onChange={handleChange}
+              error={errors.premium}
+            />
+          )}
           <Input
             label="Exit Price"
             name="exitPrice"
@@ -353,7 +422,7 @@ export default function TradeEntryForm({
             onChange={handleChange}
           />
           <Input
-            label="Stock Price DOC"
+            label={form.instrumentType === 'Stock' ? 'Entry Price (per share)' : 'Stock Price DOC'}
             name="stockPriceDOC"
             type="number"
             step="0.01"
@@ -362,7 +431,7 @@ export default function TradeEntryForm({
             error={errors.stockPriceDOC}
           />
           <Input
-            label="Current Stock Price"
+            label="Current Price"
             name="currentStockPrice"
             type="number"
             step="0.01"
@@ -374,25 +443,31 @@ export default function TradeEntryForm({
 
       {/* Reserves & Fees */}
       <fieldset>
-        <legend className="text-lg font-semibold text-text-primary mb-3">Reserves &amp; Fees</legend>
+        <legend className="text-lg font-semibold text-text-primary mb-3">
+          {form.instrumentType === 'Stock' ? 'Fees' : 'Reserves & Fees'}
+        </legend>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input
-            label="Cash Reserve"
-            name="cashReserve"
-            type="number"
-            step="0.01"
-            value={form.cashReserve}
-            onChange={handleChange}
-            error={errors.cashReserve}
-          />
-          <Input
-            label="Margin Cash Reserve"
-            name="marginCashReserve"
-            type="number"
-            step="0.01"
-            value={form.marginCashReserve}
-            onChange={handleChange}
-          />
+          {form.instrumentType === 'Option' && (
+            <Input
+              label="Cash Reserve"
+              name="cashReserve"
+              type="number"
+              step="0.01"
+              value={form.cashReserve}
+              onChange={handleChange}
+              error={errors.cashReserve}
+            />
+          )}
+          {form.instrumentType === 'Option' && (
+            <Input
+              label="Margin Cash Reserve"
+              name="marginCashReserve"
+              type="number"
+              step="0.01"
+              value={form.marginCashReserve}
+              onChange={handleChange}
+            />
+          )}
           <Input
             label="Fees"
             name="fees"

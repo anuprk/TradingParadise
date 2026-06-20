@@ -3,6 +3,7 @@
  * Matches the design document data model specification exactly.
  */
 
+export type InstrumentType = 'Option' | 'Stock';
 export type OptionType = 'Call' | 'Put';
 export type TradeDirection = 'Buy' | 'Sell';
 export type TradeStatus = 'Open' | 'Closed' | 'Expired' | 'Assigned';
@@ -10,6 +11,7 @@ export type WinLoss = 'Win' | 'Loss' | null;
 
 export interface TradeJournalEntry {
   id: string;
+  instrumentType: InstrumentType;        // 'Option' or 'Stock'
   stockSymbol: string;
   campaign: string;                    // Free-text campaign/group label
   openDate: Date;
@@ -24,6 +26,7 @@ export interface TradeJournalEntry {
   strikePrice: number;
   premium: number;
   contracts: number;                   // Number of contracts
+  quantity: number;                    // Number of shares (for stocks)
   cashReserve: number;
   marginCashReserve?: number;
   fees: number;

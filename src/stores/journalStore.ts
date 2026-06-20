@@ -58,7 +58,7 @@ function computeSummary(entries: TradeJournalEntry[]): JournalSummary {
 
 export const useJournalStore = create<JournalState>((set, get) => ({
   entries: [],
-  filters: { tradeStatus: 'Open' },
+  filters: { tradeStatus: ['Open'] },
   sortField: 'openDate' as SortField,
   sortDirection: 'desc' as SortDirection,
   isLoading: false,

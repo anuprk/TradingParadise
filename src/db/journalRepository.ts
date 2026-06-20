@@ -1,11 +1,12 @@
 import { supabase } from '../lib/supabase';
-import type { TradeJournalEntry, OptionType, TradeStatus, WinLoss } from '../types/journal';
+import type { TradeJournalEntry, InstrumentType, OptionType, TradeStatus, WinLoss } from '../types/journal';
 
 /**
  * Optional filters for querying journal entries.
  * All fields are optional — only supplied fields are applied.
  */
 export interface JournalFilters {
+  instrumentType?: InstrumentType;
   strategyId?: string;
   portfolioId?: string;
   planId?: string;
@@ -13,7 +14,7 @@ export interface JournalFilters {
   dateTo?: Date;
   stockSymbol?: string;
   optionType?: OptionType;
-  tradeStatus?: TradeStatus;
+  tradeStatus?: TradeStatus | TradeStatus[];
   winLoss?: WinLoss;
 }
 
@@ -68,6 +69,7 @@ function toDbRow(entry: TradeJournalEntry, userId: string) {
   return {
     id: entry.id,
     user_id: userId,
+    instrument_type: entry.instrumentType ?? 'Option',
     stock_symbol: entry.stockSymbol,
     campaign: entry.campaign || '',
     open_date: toDateString(entry.openDate),
@@ -82,6 +84,7 @@ function toDbRow(entry: TradeJournalEntry, userId: string) {
     strike_price: safeNumericNotNull(entry.strikePrice),
     premium: safeNumericNotNull(entry.premium),
     contracts: entry.contracts ?? 1,
+    quantity: entry.quantity ?? 0,
     cash_reserve: safeNumericNotNull(entry.cashReserve),
     margin_cash_reserve: safeNumeric(entry.marginCashReserve),
     fees: safeNumericNotNull(entry.fees),
@@ -109,6 +112,7 @@ function toDbRow(entry: TradeJournalEntry, userId: string) {
 function fromDbRow(row: Record<string, unknown>): TradeJournalEntry {
   return {
     id: row.id as string,
+    instrumentType: (row.instrument_type as TradeJournalEntry['instrumentType']) ?? 'Option',
     stockSymbol: row.stock_symbol as string,
     campaign: (row.campaign as string) || '',
     openDate: new Date((row.open_date as string) + 'T12:00:00'),
@@ -123,6 +127,7 @@ function fromDbRow(row: Record<string, unknown>): TradeJournalEntry {
     strikePrice: Number(row.strike_price),
     premium: Number(row.premium),
     contracts: row.contracts != null ? Number(row.contracts) : 1,
+    quantity: row.quantity != null ? Number(row.quantity) : 0,
     cashReserve: Number(row.cash_reserve),
     marginCashReserve: row.margin_cash_reserve != null ? Number(row.margin_cash_reserve) : undefined,
     fees: Number(row.fees),
@@ -203,6 +208,7 @@ export async function updateJournalEntry(
 ): Promise<void> {
   const updatePayload: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
+  if (changes.instrumentType !== undefined) updatePayload.instrument_type = changes.instrumentType;
   if (changes.stockSymbol !== undefined) updatePayload.stock_symbol = changes.stockSymbol;
   if (changes.campaign !== undefined) updatePayload.campaign = changes.campaign;
   if (changes.openDate !== undefined) updatePayload.open_date = changes.openDate;
@@ -217,13 +223,14 @@ export async function updateJournalEntry(
   if (changes.strikePrice !== undefined) updatePayload.strike_price = changes.strikePrice;
   if (changes.premium !== undefined) updatePayload.premium = changes.premium;
   if (changes.contracts !== undefined) updatePayload.contracts = changes.contracts;
+  if (changes.quantity !== undefined) updatePayload.quantity = changes.quantity;
   if (changes.cashReserve !== undefined) updatePayload.cash_reserve = changes.cashReserve;
   if (changes.marginCashReserve !== undefined) updatePayload.margin_cash_reserve = changes.marginCashReserve;
   if (changes.fees !== undefined) updatePayload.fees = changes.fees;
-  if (changes.exitPrice !== undefined) updatePayload.exit_price = changes.exitPrice;
+  if (changes.exitPrice !== undefined) updatePayload.exit_price = changes.exitPrice ?? null;
   if (changes.closeDate !== undefined) updatePayload.close_date = changes.closeDate;
-  if (changes.profitLoss !== undefined) updatePayload.profit_loss = changes.profitLoss;
-  if (changes.winLoss !== undefined) updatePayload.win_loss = changes.winLoss;
+  if ('profitLoss' in changes) updatePayload.profit_loss = changes.profitLoss ?? null;
+  if ('winLoss' in changes) updatePayload.win_loss = changes.winLoss ?? null;
   if (changes.daysHeld !== undefined) updatePayload.days_held = changes.daysHeld;
   if (changes.annualizedROR !== undefined) updatePayload.annualized_ror = changes.annualizedROR;
   if (changes.marginAnnualizedROR !== undefined) updatePayload.margin_annualized_ror = changes.marginAnnualizedROR;
@@ -475,6 +482,25 @@ export async function listJournalEntries(
 }
 
 /**
+ * Get all distinct stock symbols ever traded for a plan.
+ * Returns sorted unique symbols regardless of trade status or filters.
+ */
+export async function getDistinctSymbols(planId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('journal_entries')
+    .select('stock_symbol')
+    .eq('plan_id', planId);
+
+  if (error) throw new Error(`Failed to get symbols: ${error.message}`);
+  const symbols = new Set<string>();
+  (data ?? []).forEach((row) => {
+    const sym = row.stock_symbol as string;
+    if (sym) symbols.add(sym);
+  });
+  return Array.from(symbols).sort();
+}
+
+/**
  * Filter journal entries using flexible optional criteria.
  * Builds a Supabase query with all supplied filters applied server-side.
  */
@@ -490,6 +516,9 @@ export async function filterJournalEntries(
   if (filters.planId) {
     query = query.eq('plan_id', filters.planId);
   }
+  if (filters.instrumentType) {
+    query = query.eq('instrument_type', filters.instrumentType);
+  }
   if (filters.strategyId) {
     query = query.eq('strategy_id', filters.strategyId);
   }
@@ -503,7 +532,13 @@ export async function filterJournalEntries(
     query = query.eq('option_type', filters.optionType);
   }
   if (filters.tradeStatus) {
-    query = query.eq('trade_status', filters.tradeStatus);
+    if (Array.isArray(filters.tradeStatus)) {
+      if (filters.tradeStatus.length > 0) {
+        query = query.in('trade_status', filters.tradeStatus);
+      }
+    } else {
+      query = query.eq('trade_status', filters.tradeStatus);
+    }
   }
   if (filters.winLoss !== undefined) {
     if (filters.winLoss === null) {

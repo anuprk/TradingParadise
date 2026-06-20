@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { TradeJournalEntry, OptionType, TradeDirection, TradeStatus } from '../../types/journal';
+import type { TradeJournalEntry, InstrumentType, OptionType, TradeDirection, TradeStatus } from '../../types/journal';
 import type { Strategy } from '../../types/tradingPlan';
 import type { Portfolio } from '../../types/portfolio';
 
@@ -13,6 +13,7 @@ interface InlineTradeRowProps {
 }
 
 interface InlineFormData {
+  instrumentType: InstrumentType;
   stockSymbol: string;
   campaign: string;
   openDate: string;
@@ -27,6 +28,7 @@ interface InlineFormData {
   strikePrice: string;
   premium: string;
   contracts: string;
+  quantity: string;
   cashReserve: string;
   marginCashReserve: string;
   fees: string;
@@ -44,6 +46,7 @@ interface InlineFormData {
 }
 
 const emptyForm: InlineFormData = {
+  instrumentType: 'Option',
   stockSymbol: '',
   campaign: '',
   openDate: '',
@@ -58,6 +61,7 @@ const emptyForm: InlineFormData = {
   strikePrice: '',
   premium: '',
   contracts: '1',
+  quantity: '',
   cashReserve: '',
   marginCashReserve: '',
   fees: '0',
@@ -121,6 +125,8 @@ export default function InlineTradeRow({
   );
 
   const handleSubmit = async () => {
+    const isStock = form.instrumentType === 'Stock';
+
     if (!form.stockSymbol.trim()) {
       setError('Symbol is required');
       return;
@@ -129,13 +135,25 @@ export default function InlineTradeRow({
       setError('Open date is required');
       return;
     }
-    if (!form.strikePrice || Number(form.strikePrice) <= 0) {
-      setError('Strike price is required');
-      return;
-    }
-    if (form.premium === '' || form.premium === undefined) {
-      setError('Premium is required');
-      return;
+
+    if (isStock) {
+      if (!form.quantity || Number(form.quantity) <= 0) {
+        setError('Number of shares is required');
+        return;
+      }
+      if (!form.stockPriceDOC || Number(form.stockPriceDOC) <= 0) {
+        setError('Entry price is required');
+        return;
+      }
+    } else {
+      if (!form.strikePrice || Number(form.strikePrice) <= 0) {
+        setError('Strike price is required');
+        return;
+      }
+      if (form.premium === '' || form.premium === undefined) {
+        setError('Premium is required');
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -192,6 +210,7 @@ export default function InlineTradeRow({
 
       const entry: TradeJournalEntry = {
         id: uuidv4(),
+        instrumentType: form.instrumentType,
         stockSymbol: form.stockSymbol.trim().toUpperCase(),
         campaign: form.campaign.trim(),
         openDate,
@@ -203,16 +222,30 @@ export default function InlineTradeRow({
         ditc,
         currentStockPrice: form.currentStockPrice ? Number(form.currentStockPrice) : undefined,
         breakEvenPrice: Number(form.breakEvenPrice) || 0,
-        strikePrice,
-        premium,
-        contracts,
-        cashReserve: Number(form.cashReserve) || 0,
+        strikePrice: isStock ? 0 : strikePrice,
+        premium: isStock ? 0 : premium,
+        contracts: isStock ? 0 : contracts,
+        quantity: isStock ? (Number(form.quantity) || 0) : 0,
+        cashReserve: isStock ? (Number(form.stockPriceDOC) || 0) * (Number(form.quantity) || 0) : (Number(form.cashReserve) || 0),
         marginCashReserve,
         fees: Number(form.fees) || 0,
         exitPrice,
         closeDate,
-        profitLoss,
-        winLoss,
+        profitLoss: isStock
+          ? (exitPrice != null ? (form.direction === 'Buy'
+              ? (exitPrice - (Number(form.stockPriceDOC) || 0)) * (Number(form.quantity) || 0) - (Number(form.fees) || 0)
+              : ((Number(form.stockPriceDOC) || 0) - exitPrice) * (Number(form.quantity) || 0) - (Number(form.fees) || 0))
+            : profitLoss)
+          : profitLoss,
+        winLoss: (() => {
+          const pl = isStock && exitPrice != null
+            ? (form.direction === 'Buy'
+                ? (exitPrice - (Number(form.stockPriceDOC) || 0)) * (Number(form.quantity) || 0) - (Number(form.fees) || 0)
+                : ((Number(form.stockPriceDOC) || 0) - exitPrice) * (Number(form.quantity) || 0) - (Number(form.fees) || 0))
+            : profitLoss;
+          if (pl != null) return pl > 0 ? 'Win' : 'Loss';
+          return winLoss;
+        })(),
         daysHeld,
         annualizedROR: form.annualizedROR ? Number(form.annualizedROR) : undefined,
         marginAnnualizedROR: form.marginAnnualizedROR ? Number(form.marginAnnualizedROR) : undefined,
@@ -221,6 +254,7 @@ export default function InlineTradeRow({
         strategyId: (() => {
           // Auto-assign strategy: Leap if DTE > 150, Short Call if Call+Sell, Double Calendar if premium < 0, else Short Put
           if (form.strategyId && form.strategyId !== defaultStrategyId) return form.strategyId;
+          if (isStock) return form.strategyId || defaultStrategyId;
           if (premium < 0 && doubleCalendarStrategy) return doubleCalendarStrategy.id;
           if (dte > 150 && leapStrategy) return leapStrategy.id;
           if (form.optionType === 'Call' && form.direction === 'Sell' && shortCallStrategy) return shortCallStrategy.id;
@@ -264,6 +298,13 @@ export default function InlineTradeRow({
             ✕
           </button>
         </td>
+        {/* Instrument Type */}
+        <td className="px-2 py-1">
+          <select className={selectClass + ' w-16'} value={form.instrumentType} onChange={(e) => handleChange('instrumentType', e.target.value)} tabIndex={0}>
+            <option value="Option">Option</option>
+            <option value="Stock">Stock</option>
+          </select>
+        </td>
         {/* Symbol */}
         <td className="px-2 py-1">
           <input ref={firstInputRef} type="text" className={inputClass + ' w-14'} placeholder="AAPL" value={form.stockSymbol} onChange={(e) => handleChange('stockSymbol', e.target.value)} tabIndex={0} />
@@ -278,7 +319,11 @@ export default function InlineTradeRow({
         </td>
         {/* Exp Date */}
         <td className="px-2 py-1">
-          <input type="date" className={inputClass + ' w-28'} value={form.expirationDate} onChange={(e) => handleChange('expirationDate', e.target.value)} tabIndex={0} />
+          {form.instrumentType === 'Option' ? (
+            <input type="date" className={inputClass + ' w-28'} value={form.expirationDate} onChange={(e) => handleChange('expirationDate', e.target.value)} tabIndex={0} />
+          ) : (
+            <span className="text-text-secondary text-xs">—</span>
+          )}
         </td>
         {/* Strategy */}
         <td className="px-2 py-1" style={{ minWidth: 100 }}>
@@ -286,23 +331,34 @@ export default function InlineTradeRow({
             {strategies.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
           </select>
         </td>
-        {/* Strike */}
+        {/* Strike / Entry Price */}
         <td className="px-2 py-1">
-          <input type="number" step="0.01" className={inputClass + ' w-16'} placeholder="0" value={form.strikePrice} onChange={(e) => handleChange('strikePrice', e.target.value)} tabIndex={0} />
+          {form.instrumentType === 'Option' ? (
+            <input type="number" step="0.01" className={inputClass + ' w-16'} placeholder="Strike" value={form.strikePrice} onChange={(e) => handleChange('strikePrice', e.target.value)} tabIndex={0} />
+          ) : (
+            <input type="number" step="0.01" className={inputClass + ' w-16'} placeholder="Entry$" value={form.stockPriceDOC} onChange={(e) => handleChange('stockPriceDOC', e.target.value)} tabIndex={0} />
+          )}
         </td>
-        {/* Premium */}
+        {/* Premium / Quantity */}
         <td className="px-2 py-1">
-          <input type="number" step="0.01" className={inputClass + ' w-14'} placeholder="0" value={form.premium} onChange={(e) => handleChange('premium', e.target.value)} tabIndex={0} />
+          {form.instrumentType === 'Option' ? (
+            <input type="number" step="0.01" className={inputClass + ' w-14'} placeholder="Prem" value={form.premium} onChange={(e) => handleChange('premium', e.target.value)} tabIndex={0} />
+          ) : (
+            <input type="number" step="1" className={inputClass + ' w-14'} placeholder="Shares" value={form.quantity} onChange={(e) => handleChange('quantity', e.target.value)} tabIndex={0} />
+          )}
         </td>
-        {/* Contracts */}
+        {/* Contracts / Direction */}
         <td className="px-2 py-1">
-          <input type="number" className={inputClass + ' w-8'} placeholder="1" value={form.contracts} onChange={(e) => handleChange('contracts', e.target.value)} tabIndex={0} />
+          {form.instrumentType === 'Option' ? (
+            <input type="number" className={inputClass + ' w-8'} placeholder="1" value={form.contracts} onChange={(e) => handleChange('contracts', e.target.value)} tabIndex={0} />
+          ) : (
+            <select className={selectClass + ' w-12'} value={form.direction} onChange={(e) => handleChange('direction', e.target.value)} tabIndex={0}>
+              <option value="Buy">Buy</option>
+              <option value="Sell">Sell</option>
+            </select>
+          )}
         </td>
-        {/* Cash Reserve */}
-        <td className="px-2 py-1">
-          <input type="number" step="0.01" className={inputClass + ' w-16'} placeholder="0" value={form.cashReserve} onChange={(e) => handleChange('cashReserve', e.target.value)} tabIndex={0} />
-        </td>
-        {/* Margin Reserve (auto-calculated, read-only display) */}
+        {/* Premium Received (auto-calculated) */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
         {/* Exit Price */}
         <td className="px-2 py-1">
@@ -317,6 +373,8 @@ export default function InlineTradeRow({
         {/* DIT (auto) */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
         {/* P/L (auto) */}
+        <td className="px-2 py-1 text-text-secondary text-xs">—</td>
+        {/* %Prem (auto) */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
         {/* W/L (auto) */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
@@ -335,6 +393,12 @@ export default function InlineTradeRow({
             <option value="Assigned">Assigned</option>
           </select>
         </td>
+        {/* Cash Reserve */}
+        <td className="px-2 py-1">
+          <input type="number" step="0.01" className={inputClass + ' w-16'} placeholder="0" value={form.cashReserve} onChange={(e) => handleChange('cashReserve', e.target.value)} tabIndex={0} />
+        </td>
+        {/* Margin Reserve */}
+        <td className="px-2 py-1 text-text-secondary text-xs">—</td>
       </tr>
       {error && (
         <tr className="bg-error/5">

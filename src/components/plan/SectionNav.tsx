@@ -7,6 +7,7 @@ export interface PlanSection {
 }
 
 export const PLAN_SECTIONS: PlanSection[] = [
+  { id: 'compliance', label: 'Compliance Monitor' },
   { id: 'metadata-goals', label: 'Metadata & Goals' },
   { id: 'greeks-targets', label: 'Portfolio Greeks Targets' },
   { id: 'risk-management', label: 'Risk Management' },

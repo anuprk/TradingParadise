@@ -70,7 +70,7 @@ export function calculateMarginAnnualizedROR(
 }
 
 /**
- * Calculates profit/loss for a closed trade.
+ * Calculates profit/loss for a closed option trade.
  * Sell direction: entryPremium - exitPrice - fees
  * Buy direction: exitPrice - entryPremium - fees
  * Requirement 13.10
@@ -86,6 +86,54 @@ export function calculateProfitLoss(
       ? entryPremium - exitPrice
       : exitPrice - entryPremium;
   return gross - fees;
+}
+
+/**
+ * Calculates profit/loss for a closed stock trade.
+ * Buy: (exitPrice - entryPrice) * quantity - fees
+ * Sell (short): (entryPrice - exitPrice) * quantity - fees
+ */
+export function calculateStockProfitLoss(
+  entryPrice: number,
+  exitPrice: number,
+  quantity: number,
+  direction: TradeDirection,
+  fees: number,
+): number {
+  const gross =
+    direction === 'Buy'
+      ? (exitPrice - entryPrice) * quantity
+      : (entryPrice - exitPrice) * quantity;
+  return gross - fees;
+}
+
+/**
+ * Calculates unrealized P/L for an open stock position.
+ * Buy: (currentPrice - entryPrice) * quantity
+ * Sell (short): (entryPrice - currentPrice) * quantity
+ */
+export function calculateStockUnrealizedPL(
+  entryPrice: number,
+  currentPrice: number,
+  quantity: number,
+  direction: TradeDirection,
+): number {
+  return direction === 'Buy'
+    ? (currentPrice - entryPrice) * quantity
+    : (entryPrice - currentPrice) * quantity;
+}
+
+/**
+ * Calculates annualized return for a stock trade.
+ * Formula: ((profitLoss) / costBasis) * (365 / daysHeld) * 100
+ */
+export function calculateStockAnnualizedROR(
+  profitLoss: number,
+  costBasis: number,
+  daysHeld: number,
+): number {
+  if (costBasis === 0 || daysHeld === 0) return 0;
+  return (profitLoss / costBasis) * (365 / daysHeld) * 100;
 }
 
 /**

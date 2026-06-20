@@ -1,8 +1,9 @@
-import React, { useMemo, useState, useCallback, useRef } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useJournal } from '../../hooks/useJournal';
 import { useTradingPlan } from '../../hooks/useTradingPlan';
 import { usePortfolio } from '../../hooks/usePortfolio';
 import { useAppStore } from '../../stores/appStore';
+import { getDistinctSymbols } from '../../db/journalRepository';
 import { formatProfitLoss, formatCurrency } from '../../utils/formatters';
 import Button from '../ui/Button';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -27,7 +28,7 @@ function toDateInput(date: Date | undefined | null): string {
 }
 
 export default function TradeJournal() {
-  const { entries, filters, sortField, sortDirection, setSort, setFilters, summary, isLoading, deleteEntry, addEntry, updateEntry, totalCount, currentPage, setPage, stats, assignDefaultStrategies } = useJournal();
+  const { entries, filters, sortField, sortDirection, setSort, setFilters, summary, isLoading, deleteEntry, addEntry, updateEntry, totalCount, currentPage, setPage, stats } = useJournal();
   const { plan } = useTradingPlan();
   const { portfolios } = usePortfolio();
   const activePlanId = useAppStore((s) => s.activePlanId);
@@ -35,7 +36,8 @@ export default function TradeJournal() {
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [showInlineAdd, setShowInlineAdd] = useState(false);
-  const [groupBy, setGroupBy] = useState<'none' | 'stockSymbol' | 'expirationDate' | 'strategyId'>('none');
+  const [groupBy, setGroupBy] = useState<'none' | 'stockSymbol' | 'expirationDate' | 'strategyId' | 'campaign'>('none');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const totalPages = Math.max(1, Math.ceil(totalCount / 50));
@@ -83,6 +85,8 @@ export default function TradeJournal() {
         key = entry.stockSymbol;
       } else if (groupBy === 'expirationDate') {
         key = entry.expirationDate ? new Date(entry.expirationDate).toISOString().split('T')[0] : 'No Expiration';
+      } else if (groupBy === 'campaign') {
+        key = entry.campaign || 'No Campaign';
       } else {
         const strat = strategies.find((s) => s.id === entry.strategyId);
         key = strat?.name || entry.strategyId || 'Unassigned';
@@ -95,6 +99,8 @@ export default function TradeJournal() {
         label,
         items,
         totalPL: items.reduce((s, e) => s + (e.profitLoss ?? 0), 0),
+        totalPremiumReceived: items.reduce((s, e) => s + (e.premium * (e.contracts || 1) * 100), 0),
+        totalMarginRequired: items.reduce((s, e) => s + (e.marginCashReserve ?? 0), 0),
         count: items.length,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
@@ -107,12 +113,16 @@ export default function TradeJournal() {
     return { totalPL: stats.totalPL, avgPL, winRate, closedCount: stats.closedCount, monthlyPL: stats.monthlyPL, yearlyPL: stats.yearlyPL };
   }, [stats]);
 
-  // Unique symbols for filter dropdown
-  const uniqueSymbols = useMemo(() => {
-    const syms = new Set<string>();
-    entries.forEach((e) => { if (e.stockSymbol) syms.add(e.stockSymbol); });
-    return Array.from(syms).sort();
-  }, [entries]);
+  // All symbols ever traded for this plan (independent of filters)
+  const [allSymbols, setAllSymbols] = useState<string[]>([]);
+  useEffect(() => {
+    if (!activePlanId) return;
+    let cancelled = false;
+    getDistinctSymbols(activePlanId).then((syms) => {
+      if (!cancelled) setAllSymbols(syms);
+    });
+    return () => { cancelled = true; };
+  }, [activePlanId, entries]); // Re-fetch when entries change (new trade added)
 
   // Monthly stats for the performance banner — always based on closed trades from stats (independent of status filter)
   const monthlyStats = useMemo(() => {
@@ -127,6 +137,9 @@ export default function TradeJournal() {
     });
     const openTrades = monthEntries.length;
 
+    // Total margin across all visible entries (open positions)
+    const totalMarginRequired = entries.reduce((s, e) => s + (e.marginCashReserve ?? 0), 0);
+
     // All other metrics come from stats (computed from ALL non-open trades across all pages)
     const winRate = stats.monthlyWinRate;
     const weeklyIncome = stats.weeklyPL;
@@ -134,19 +147,8 @@ export default function TradeJournal() {
     const totalPremiumKept = stats.monthlyPL;
     const premiumKeptPct = totalPremiumReceived > 0 ? (totalPremiumKept / totalPremiumReceived) * 100 : 0;
 
-    return { totalTrades: stats.monthlyClosedCount, openTrades, winRate, weeklyIncome, totalPremiumReceived, totalPremiumKept, premiumKeptPct };
+    return { totalTrades: stats.monthlyClosedCount, openTrades, winRate, weeklyIncome, totalPremiumReceived, totalPremiumKept, premiumKeptPct, totalMarginRequired };
   }, [entries, stats]);
-
-  const handleAssignStrategies = useCallback(async () => {
-    const shortPut = strategies.find((s) => s.name.toLowerCase().includes('short put'));
-    const shortCall = strategies.find((s) => s.name.toLowerCase().includes('short call'));
-    const leap = strategies.find((s) => s.name.toLowerCase().includes('leap'));
-    if (!shortPut) {
-      addToast('No "Short Put" strategy found in plan. Create it first.', 'error');
-      return;
-    }
-    await assignDefaultStrategies(shortPut.id, shortCall?.id || '', leap?.id || '');
-  }, [strategies, assignDefaultStrategies, addToast]);
 
   // Debounced save for inline edits
   const saveField = useCallback((entryId: string, field: string, value: string, entry: TradeJournalEntry) => {
@@ -175,7 +177,7 @@ export default function TradeJournal() {
         case 'contracts': changes.contracts = Number(value) || 1; break;
         case 'cashReserve': changes.cashReserve = Number(value) || 0; break;
         case 'marginCashReserve': changes.marginCashReserve = value ? Number(value) : undefined; break;
-        case 'exitPrice': changes.exitPrice = value !== '' ? Number(value) : undefined; break;
+        case 'exitPrice': changes.exitPrice = (value !== '' && value.trim() !== '') ? Number(value) : undefined; break;
         case 'closeDate': changes.closeDate = value ? new Date(value + 'T12:00:00') : undefined; break;
         case 'tradeStatus': changes.tradeStatus = value as TradeJournalEntry['tradeStatus']; break;
         case 'strategyId': changes.strategyId = value; break;
@@ -186,7 +188,9 @@ export default function TradeJournal() {
       const openDate = changes.openDate ?? entry.openDate;
       const expirationDate = changes.expirationDate ?? entry.expirationDate;
       const closeDate = changes.closeDate !== undefined ? changes.closeDate : entry.closeDate;
-      const exitPrice = changes.exitPrice !== undefined ? changes.exitPrice : entry.exitPrice;
+      // If user is editing exitPrice, use the new value (including undefined for cleared).
+      // Otherwise fall back to existing entry value.
+      const exitPrice = field === 'exitPrice' ? changes.exitPrice : (changes.exitPrice ?? entry.exitPrice);
       const premium = changes.premium ?? entry.premium;
       const strikePrice = changes.strikePrice ?? entry.strikePrice;
       const contracts = changes.contracts ?? entry.contracts ?? 1;
@@ -209,15 +213,30 @@ export default function TradeJournal() {
       if (closeDate && openDate) {
         changes.daysHeld = Math.round((new Date(closeDate).getTime() - new Date(openDate).getTime()) / (1000 * 60 * 60 * 24));
       }
-      // Only calculate P/L for non-open trades (user must manually change status to Closed)
+      // Calculate P/L whenever exit price is available
       const effectiveStatus = changes.tradeStatus ?? entry.tradeStatus;
-      if (exitPrice != null && effectiveStatus !== 'Open') {
-        // Credit trades (premium >= 0): P/L = (Premium - Exit) × 100 × Contracts
-        // Debit trades (premium < 0): P/L = (Premium + Exit) × 100 × Contracts
-        changes.profitLoss = premium < 0
-          ? (premium + exitPrice) * 100 * contracts
-          : (premium - exitPrice) * 100 * contracts;
+      if (exitPrice != null) {
+        const isStock = (entry.instrumentType ?? 'Option') === 'Stock';
+        if (isStock) {
+          const entryPrice = changes.stockPriceDOC ?? entry.stockPriceDOC ?? 0;
+          const qty = entry.quantity ?? 0;
+          const dir = changes.direction ?? entry.direction;
+          const fees = entry.fees ?? 0;
+          changes.profitLoss = dir === 'Buy'
+            ? (exitPrice - entryPrice) * qty - fees
+            : (entryPrice - exitPrice) * qty - fees;
+        } else {
+          // Credit trades (premium >= 0): P/L = (Premium - Exit) × 100 × Contracts
+          // Debit trades (premium < 0): P/L = (Premium + Exit) × 100 × Contracts
+          changes.profitLoss = premium < 0
+            ? (premium + exitPrice) * 100 * contracts
+            : (premium - exitPrice) * 100 * contracts;
+        }
         changes.winLoss = changes.profitLoss > 0 ? 'Win' : 'Loss';
+      } else if (field === 'exitPrice') {
+        // Exit price was cleared — reset P/L and win/loss
+        changes.profitLoss = undefined;
+        changes.winLoss = null;
       }
 
       // Auto-assign strategy for older records based on rules
@@ -287,7 +306,7 @@ export default function TradeJournal() {
   return (
     <div className="space-y-4">
       {/* Monthly Performance Banner */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
         <div className="bg-surface-tertiary rounded-lg p-3 text-center">
           <p className="text-[10px] text-text-secondary uppercase">{monthName} Trades</p>
           <p className="text-lg font-bold text-text-primary">{monthlyStats.totalTrades}</p>
@@ -312,6 +331,10 @@ export default function TradeJournal() {
           <p className="text-[10px] text-text-secondary uppercase">Premium Kept ({monthlyStats.premiumKeptPct.toFixed(0)}%)</p>
           <p className={`text-lg font-bold ${monthlyStats.totalPremiumKept >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(monthlyStats.totalPremiumKept)}</p>
         </div>
+        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
+          <p className="text-[10px] text-text-secondary uppercase">Total Margin Req</p>
+          <p className="text-lg font-bold text-text-primary">{formatCurrency(monthlyStats.totalMarginRequired)}</p>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">
@@ -324,12 +347,28 @@ export default function TradeJournal() {
           >
             <option value="none">No Grouping</option>
             <option value="stockSymbol">Group by Symbol</option>
+            <option value="campaign">Group by Campaign</option>
             <option value="expirationDate">Group by Expiration</option>
             <option value="strategyId">Group by Strategy</option>
           </select>
-          <Button size="sm" variant="secondary" onClick={handleAssignStrategies}>
-            Assign Strategies
-          </Button>
+          {groupBy !== 'none' && (
+            <>
+              <button
+                type="button"
+                className="px-2 py-1 text-xs border border-border rounded text-text-secondary hover:text-text-primary"
+                onClick={() => setCollapsedGroups(new Set(groupedData?.map((g) => g.label) ?? []))}
+              >
+                Collapse All
+              </button>
+              <button
+                type="button"
+                className="px-2 py-1 text-xs border border-border rounded text-text-secondary hover:text-text-primary"
+                onClick={() => setCollapsedGroups(new Set())}
+              >
+                Expand All
+              </button>
+            </>
+          )}
           <Button size="sm" variant="secondary" onClick={() => setShowInlineAdd(true)} disabled={!activePlanId || showInlineAdd}>
             + Add Row
           </Button>
@@ -337,8 +376,7 @@ export default function TradeJournal() {
       </div>
 
       <JournalFilters
-        strategies={strategies}
-        symbols={uniqueSymbols}
+        symbols={allSymbols}
         filters={filters}
         onFilterChange={setFilters}
       />
@@ -349,8 +387,9 @@ export default function TradeJournal() {
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-border text-xs" style={{ tableLayout: 'auto' }}>
             <thead className="bg-surface-tertiary sticky top-0">
-              <tr>
+              <tr className="[&>th]:resize-x [&>th]:overflow-hidden">
                 <th className="px-1 py-2" style={{ width: 24 }} />
+                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('instrumentType')}>Type{sortIndicator('instrumentType')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('stockSymbol')}>Symbol{sortIndicator('stockSymbol')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('campaign')}>Campaign{sortIndicator('campaign')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('openDate')}>Open{sortIndicator('openDate')}</th>
@@ -358,19 +397,21 @@ export default function TradeJournal() {
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" style={{ minWidth: 100 }} onClick={() => handleSort('strategyId')}>Strategy{sortIndicator('strategyId')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('strikePrice')}>Strike{sortIndicator('strikePrice')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('premium')}>Premium{sortIndicator('premium')}</th>
-                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('contracts')}>#{ sortIndicator('contracts')}</th>
-                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('cashReserve')}>Cash Res{sortIndicator('cashReserve')}</th>
-                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginCashReserve')}>Margin Res{sortIndicator('marginCashReserve')}</th>
-                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('exitPrice')}>Exit{sortIndicator('exitPrice')}</th>
+                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer resize-x overflow-hidden" onClick={() => handleSort('contracts')}>#{ sortIndicator('contracts')}</th>
+                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase resize-x overflow-hidden">Prem Rcvd</th>
+                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer resize-x overflow-hidden" onClick={() => handleSort('exitPrice')}>Exit{sortIndicator('exitPrice')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('closeDate')}>Close{sortIndicator('closeDate')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('dte')}>DTE{sortIndicator('dte')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('ditc')}>DIT{sortIndicator('ditc')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('profitLoss')}>P/L{sortIndicator('profitLoss')}</th>
+                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase">%Prem</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('winLoss')}>W/L{sortIndicator('winLoss')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('daysHeld')}>Days{sortIndicator('daysHeld')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('annualizedROR')}>Ann ROR{sortIndicator('annualizedROR')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginAnnualizedROR')}>Margin ROR{sortIndicator('marginAnnualizedROR')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('tradeStatus')}>Status{sortIndicator('tradeStatus')}</th>
+                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('cashReserve')}>Cash Res{sortIndicator('cashReserve')}</th>
+                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginCashReserve')}>Margin Res{sortIndicator('marginCashReserve')}</th>
               </tr>
             </thead>
             <tbody className="bg-surface-secondary divide-y divide-border">
@@ -386,12 +427,23 @@ export default function TradeJournal() {
               {groupedData ? (
                 groupedData.map((group) => (
                   <React.Fragment key={group.label}>
-                    <tr className="bg-surface-tertiary/70">
+                    <tr
+                      className="bg-surface-tertiary/70 cursor-pointer hover:bg-surface-tertiary"
+                      onClick={() => {
+                        setCollapsedGroups((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(group.label)) next.delete(group.label);
+                          else next.add(group.label);
+                          return next;
+                        });
+                      }}
+                    >
                       <td colSpan={22} className="px-2 py-1.5 text-xs font-bold text-text-primary">
-                        {group.label} <span className="font-normal text-text-secondary ml-2">({group.count} trades, P/L: <span className={group.totalPL >= 0 ? 'text-success' : 'text-error'}>{formatProfitLoss(group.totalPL)}</span>)</span>
+                        <span className="inline-block w-4 text-text-secondary">{collapsedGroups.has(group.label) ? '▶' : '▼'}</span>
+                        {group.label} <span className="font-normal text-text-secondary ml-2">({group.count} trades, P/L: <span className={group.totalPL >= 0 ? 'text-success' : 'text-error'}>{formatProfitLoss(group.totalPL)}</span>, Prem Rcvd: {formatCurrency(group.totalPremiumReceived)}, Margin: {formatCurrency(group.totalMarginRequired)})</span>
                       </td>
                     </tr>
-                    {group.items.map((entry) => (
+                    {!collapsedGroups.has(group.label) && group.items.map((entry) => (
                 <tr key={entry.id} className="hover:bg-surface-tertiary group">
                   <td className="px-1 py-1">
                     <button
@@ -403,6 +455,7 @@ export default function TradeJournal() {
                       <X size={12} />
                     </button>
                   </td>
+                  <td className="px-2 py-1"><span className={`text-xs px-1.5 py-0.5 rounded ${entry.instrumentType === 'Stock' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>{entry.instrumentType === 'Stock' ? 'STK' : 'OPT'}</span></td>
                   <td className="px-2 py-1"><input className={ic + ' w-14 font-medium'} defaultValue={entry.stockSymbol} onBlur={(e) => saveField(entry.id, 'stockSymbol', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input className={ic + ' w-20'} defaultValue={entry.campaign || ''} onBlur={(e) => saveField(entry.id, 'campaign', e.target.value, entry)} placeholder="" /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.openDate)} onBlur={(e) => saveField(entry.id, 'openDate', e.target.value, entry)} /></td>
@@ -411,18 +464,20 @@ export default function TradeJournal() {
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.strikePrice || ''} onBlur={(e) => saveField(entry.id, 'strikePrice', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-14'} defaultValue={entry.premium || ''} onBlur={(e) => saveField(entry.id, 'premium', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="number" className={ic + ' w-8'} defaultValue={entry.contracts || 1} onBlur={(e) => saveField(entry.id, 'contracts', e.target.value, entry)} /></td>
-                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.cashReserve || ''} onBlur={(e) => saveField(entry.id, 'cashReserve', e.target.value, entry)} /></td>
-                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1 text-right text-text-secondary">{formatCurrency(entry.premium * (entry.contracts || 1) * 100)}</td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-14'} defaultValue={entry.exitPrice ?? ''} onBlur={(e) => saveField(entry.id, 'exitPrice', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.closeDate)} onBlur={(e) => saveField(entry.id, 'closeDate', e.target.value, entry)} /></td>
                   <td className="px-2 py-1 text-text-secondary">{entry.dte || '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.ditc || '—'}</td>
                   <td className={`px-2 py-1 font-medium ${(entry.profitLoss ?? 0) >= 0 ? 'text-success' : 'text-error'}`}>{entry.profitLoss != null ? formatProfitLoss(entry.profitLoss) : '—'}</td>
+                  <td className={`px-2 py-1 ${entry.profitLoss != null && entry.premium ? ((entry.profitLoss / (entry.premium * (entry.contracts || 1) * 100)) >= 0 ? 'text-success' : 'text-error') : 'text-text-secondary'}`}>{entry.profitLoss != null && entry.premium ? `${((entry.profitLoss / (entry.premium * (entry.contracts || 1) * 100)) * 100).toFixed(1)}%` : '—'}</td>
                   <td className={`px-2 py-1 font-medium ${entry.winLoss === 'Win' ? 'text-success' : entry.winLoss === 'Loss' ? 'text-error' : ''}`}>{entry.winLoss || '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.daysHeld ?? '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.annualizedROR != null ? `${entry.annualizedROR.toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${entry.marginAnnualizedROR.toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
+                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.cashReserve || ''} onBlur={(e) => saveField(entry.id, 'cashReserve', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
                 </tr>
                     ))}
                   </React.Fragment>
@@ -433,6 +488,7 @@ export default function TradeJournal() {
                   <td className="px-1 py-1">
                     <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-error transition-opacity p-0.5 rounded" onClick={() => setDeleteTargetId(entry.id)} title="Delete"><X size={12} /></button>
                   </td>
+                  <td className="px-2 py-1"><span className={`text-xs px-1.5 py-0.5 rounded ${entry.instrumentType === 'Stock' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>{entry.instrumentType === 'Stock' ? 'STK' : 'OPT'}</span></td>
                   <td className="px-2 py-1"><input className={ic + ' w-14 font-medium'} defaultValue={entry.stockSymbol} onBlur={(e) => saveField(entry.id, 'stockSymbol', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input className={ic + ' w-20'} defaultValue={entry.campaign || ''} onBlur={(e) => saveField(entry.id, 'campaign', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.openDate)} onBlur={(e) => saveField(entry.id, 'openDate', e.target.value, entry)} /></td>
@@ -441,18 +497,20 @@ export default function TradeJournal() {
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.strikePrice || ''} onBlur={(e) => saveField(entry.id, 'strikePrice', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-14'} defaultValue={entry.premium || ''} onBlur={(e) => saveField(entry.id, 'premium', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="number" className={ic + ' w-8'} defaultValue={entry.contracts || 1} onBlur={(e) => saveField(entry.id, 'contracts', e.target.value, entry)} /></td>
-                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.cashReserve || ''} onBlur={(e) => saveField(entry.id, 'cashReserve', e.target.value, entry)} /></td>
-                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1 text-right text-text-secondary">{formatCurrency(entry.premium * (entry.contracts || 1) * 100)}</td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-14'} defaultValue={entry.exitPrice ?? ''} onBlur={(e) => saveField(entry.id, 'exitPrice', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.closeDate)} onBlur={(e) => saveField(entry.id, 'closeDate', e.target.value, entry)} /></td>
                   <td className="px-2 py-1 text-text-secondary">{entry.dte || '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.ditc || '—'}</td>
                   <td className={`px-2 py-1 font-medium ${(entry.profitLoss ?? 0) >= 0 ? 'text-success' : 'text-error'}`}>{entry.profitLoss != null ? formatProfitLoss(entry.profitLoss) : '—'}</td>
+                  <td className={`px-2 py-1 ${entry.profitLoss != null && entry.premium ? ((entry.profitLoss / (entry.premium * (entry.contracts || 1) * 100)) >= 0 ? 'text-success' : 'text-error') : 'text-text-secondary'}`}>{entry.profitLoss != null && entry.premium ? `${((entry.profitLoss / (entry.premium * (entry.contracts || 1) * 100)) * 100).toFixed(1)}%` : '—'}</td>
                   <td className={`px-2 py-1 font-medium ${entry.winLoss === 'Win' ? 'text-success' : entry.winLoss === 'Loss' ? 'text-error' : ''}`}>{entry.winLoss || '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.daysHeld ?? '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.annualizedROR != null ? `${entry.annualizedROR.toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${entry.marginAnnualizedROR.toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
+                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.cashReserve || ''} onBlur={(e) => saveField(entry.id, 'cashReserve', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
                 </tr>
                 ))
               )}
