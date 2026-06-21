@@ -1,13 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
   format,
-  startOfMonth,
-  endOfMonth,
 } from 'date-fns';
 import Card from '../components/ui/Card';
 import { useTradingPlan } from '../hooks/useTradingPlan';
 import { usePlanStore } from '../stores/planStore';
-import { useAppStore } from '../stores/appStore';
 import { formatCurrency, formatProfitLoss } from '../utils/formatters';
 import { getJournalStats, listJournalEntries } from '../db/journalRepository';
 import { listPortfolios } from '../db/portfolioRepository';
@@ -49,7 +46,6 @@ interface PortfolioStatsData {
 export default function DashboardPage() {
   const { plan } = useTradingPlan();
   const { plans, loadPlans } = usePlanStore();
-  const activePlanId = useAppStore((s) => s.activePlanId);
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [planStats, setPlanStats] = useState<PlanStatsData[]>([]);

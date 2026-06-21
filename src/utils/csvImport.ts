@@ -214,7 +214,9 @@ export function parseCsvToEntries(csvText: string, planId: string, portfolioId: 
     const now = new Date();
     const entry: TradeJournalEntry = {
       id: uuidv4(),
+      instrumentType: 'Option',
       stockSymbol: symbol,
+      campaign: '',
       openDate,
       expirationDate: expirationDate || openDate,
       optionType,
@@ -227,6 +229,7 @@ export function parseCsvToEntries(csvText: string, planId: string, portfolioId: 
       strikePrice,
       premium: Math.abs(premium),
       contracts: parseInt(getField(row, headerMap, 'contracts')) || 1,
+      quantity: 0,
       cashReserve: Math.abs(cashReserve),
       marginCashReserve: marginCashReserve ? Math.abs(marginCashReserve) : undefined,
       fees: Math.abs(fees),

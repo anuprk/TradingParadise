@@ -22,6 +22,7 @@ export async function extractTextFromPDF(data: ArrayBuffer): Promise<string[]> {
   const loadingTask = pdfjsLib.getDocument({
     data,
     useWorkerFetch: false,
+    // @ts-expect-error pdfjs-dist type mismatch with newer version
     isEvalSupported: false,
     useSystemFonts: true,
   });
@@ -34,8 +35,9 @@ export async function extractTextFromPDF(data: ArrayBuffer): Promise<string[]> {
     const textContent = await page.getTextContent();
 
     const pageText = textContent.items
+      // @ts-expect-error pdfjs-dist TextItem type mismatch
       .filter((item): item is { str: string; transform: number[] } => 'str' in item)
-      .map((item) => item.str)
+      .map((item: any) => item.str)
       .join(' ');
 
     pageTexts.push(pageText);

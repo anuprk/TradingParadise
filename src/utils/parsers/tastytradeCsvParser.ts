@@ -204,7 +204,6 @@ export class TastytradeCsvParser implements StatementParser {
       const expirationDateStr = (row['Expiration Date'] || '').trim();
       const expirationDate = expirationDateStr ? parseDate(expirationDateStr) : undefined;
       const description = (row['Description'] || '').trim();
-      const multiplier = parseNumber(row['Multiplier'] || '') || 100;
 
       const now = new Date();
 

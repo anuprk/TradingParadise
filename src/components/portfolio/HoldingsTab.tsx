@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { formatCurrency, formatProfitLoss } from '../../utils/formatters';
 import { fetchStockQuotes, type StockQuote } from '../../utils/stockPrice';
 import { getHoldings, upsertHolding, updateHoldingField, bulkUpdatePrices, type PortfolioHolding } from '../../db/holdingsRepository';
-import { useColumnResize } from '../../hooks/useColumnResize';
 import Button from '../ui/Button';
 import { Plus, X } from 'lucide-react';
 
@@ -134,9 +133,6 @@ export default function HoldingsTab({ portfolioId }: HoldingsTabProps) {
   }, [sortField]);
 
   const sortIndicator = (field: string) => sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
-
-  // Column resize (14 columns: action + 13 data columns)
-  const { widths: colWidths, onMouseDown: onColResize } = useColumnResize(14, 70);
 
   // Filter: only show holdings with qty > 0
   const visibleHoldings = useMemo(() => {

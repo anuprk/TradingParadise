@@ -165,7 +165,7 @@ function extractSymbolFromDescription(description: string): string | undefined {
  * - "YOU BOUGHT" + positive quantity = Buy
  * - "ASSIGNED" = Assignment
  */
-function mapAction(action: string, quantity: number): { transactionType: TransactionType; isOpening: boolean; skip: boolean } {
+function mapAction(action: string, _quantity: number): { transactionType: TransactionType; isOpening: boolean; skip: boolean } {
   const upper = action.toUpperCase();
 
   // Skip money market and core account transactions

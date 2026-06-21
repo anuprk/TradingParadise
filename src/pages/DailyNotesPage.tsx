@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { marked } from 'marked';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';

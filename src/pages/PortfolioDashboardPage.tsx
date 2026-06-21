@@ -1,20 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { usePortfolioStore } from '../stores/portfolioStore';
-import PerformanceSummary from '../components/portfolio/PerformanceSummary';
 import TabNavigation, { type PortfolioTab } from '../components/portfolio/TabNavigation';
 import HoldingsTab from '../components/portfolio/HoldingsTab';
 import DividendSummary from '../components/portfolio/DividendSummary';
-import type { PerformanceSummaryData } from '../types/transaction';
-
-const defaultPerformance: PerformanceSummaryData = {
-  totalPortfolioValue: 0,
-  totalRealizedPL: 0,
-  totalUnrealizedPL: 0,
-  overallReturnPercentage: 0,
-  winRate: 0,
-  totalTransactions: 0,
-};
 
 export default function PortfolioDashboardPage() {
   const { id } = useParams<{ id: string }>();

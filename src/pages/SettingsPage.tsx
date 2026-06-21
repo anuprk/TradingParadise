@@ -126,7 +126,7 @@ export default function SettingsPage() {
         await createPortfolio(p);
       }
       for (const je of data.journalEntries) {
-        await createJournalEntry(je);
+        await createJournalEntry({ instrumentType: 'Option', campaign: '', contracts: 1, quantity: 0, ...je } as import('../types/journal').TradeJournalEntry);
       }
       for (const r of data.reminders) {
         await createReminder(r);

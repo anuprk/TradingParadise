@@ -285,7 +285,7 @@ export async function bulkAssignStrategy(
     query = query.gt('dte', criteria.dteGreaterThan);
   }
 
-  const { error } = await query.select('id', { count: 'exact' });
+  const { error } = await query.select('id');
   if (error) throw new Error(`Failed to bulk assign strategy: ${error.message}`);
   return 0;
 }
