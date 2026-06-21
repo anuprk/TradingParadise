@@ -1,7 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { usePortfolioStore } from '../stores/portfolioStore';
 import type { Portfolio } from '../types/portfolio';
-import { listAllPortfolios } from '../db/portfolioRepository';
 
 /**
  * Custom hook for portfolio management.

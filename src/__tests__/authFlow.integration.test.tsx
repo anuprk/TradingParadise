@@ -18,6 +18,8 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 let mockSession: any = null;
 let mockUser: any = null;
 let _authStateCallback: ((event: string, session: any) => void) | null = null;
+// Force TypeScript to consider _authStateCallback as "read"
+void _authStateCallback;
 
 vi.mock('../lib/supabase', () => ({
   supabase: {

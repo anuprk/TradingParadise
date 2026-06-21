@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { filterJournalEntries } from '../../db/journalRepository';
 import { evaluatePlanCompliance } from '../../utils/planCompliance';
-import type { PlanComplianceReport, ComplianceSeverity } from '../../utils/planCompliance';
+import type { PlanComplianceReport, ComplianceCheck, ComplianceSeverity } from '../../utils/planCompliance';
 import type { TradingPlan } from '../../types/tradingPlan';
 import Badge from '../ui/Badge';
 

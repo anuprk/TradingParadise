@@ -74,7 +74,7 @@ export function useTradeMonitor(planId: string | undefined) {
       if (newTrades.length > 0 && newViolations.length > 0) {
         addToast(
           `${newTrades.length} new trade(s) triggered compliance alert`,
-          'warning',
+          'error',
         );
       }
 

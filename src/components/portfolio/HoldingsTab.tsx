@@ -74,7 +74,7 @@ export default function HoldingsTab({ portfolioId }: HoldingsTabProps) {
     const symbol = newSymbol.trim().toUpperCase();
     if (holdings.some((h) => h.symbol === symbol)) { setNewSymbol(''); return; }
     await upsertHolding(portfolioId, symbol, { quantity: 0, avgCost: 0, dividendFrequency: 'monthly' });
-    setHoldings((prev) => [...prev, { id: '', portfolioId, symbol, quantity: 0, avgCost: 0, currentPrice: null, dividendFrequency: 'monthly', createdAt: new Date(), updatedAt: new Date() }]);
+    setHoldings((prev) => [...prev, { id: '', portfolioId, symbol, quantity: 0, avgCost: 0, currentPrice: null, dividendFrequency: 'monthly', dividendYield: null, createdAt: new Date(), updatedAt: new Date() }]);
     setNewSymbol('');
   }, [newSymbol, portfolioId, holdings]);
 

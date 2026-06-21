@@ -104,7 +104,7 @@ function buildInitialForm(entry?: TradeJournalEntry): FormData {
       fees: String(entry.fees),
       closeDate: toDateInputValue(entry.closeDate),
       strategyId: entry.strategyId,
-      portfolioId: entry.portfolioId,
+      portfolioId: entry.portfolioId ?? '',
       notes: entry.notes ?? '',
       quantity: String(entry.quantity ?? 0),
     };

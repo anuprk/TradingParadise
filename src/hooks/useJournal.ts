@@ -34,7 +34,6 @@ export function useJournal() {
     currentPage,
     stats,
     loadEntries,
-    loadStats,
     addEntry,
     updateEntry,
     deleteEntry,

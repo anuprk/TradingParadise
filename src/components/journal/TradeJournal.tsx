@@ -28,7 +28,7 @@ function toDateInput(date: Date | undefined | null): string {
 }
 
 export default function TradeJournal() {
-  const { entries, filters, sortField, sortDirection, setSort, setFilters, summary, isLoading, deleteEntry, addEntry, updateEntry, totalCount, currentPage, setPage, stats } = useJournal();
+  const { entries, filters, sortField, sortDirection, setSort, setFilters, isLoading, deleteEntry, addEntry, updateEntry, totalCount, currentPage, setPage, stats } = useJournal();
   const { plan } = useTradingPlan();
   const { portfolios } = usePortfolio();
   const activePlanId = useAppStore((s) => s.activePlanId);
@@ -105,13 +105,6 @@ export default function TradeJournal() {
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [sortedEntries, groupBy, strategies]);
-
-  // Compute closed-trade stats (exclude open trades from P/L calculations)
-  const closedStats = useMemo(() => {
-    const winRate = stats.closedCount > 0 ? (stats.winCount / stats.closedCount) * 100 : 0;
-    const avgPL = stats.closedCount > 0 ? stats.totalPL / stats.closedCount : 0;
-    return { totalPL: stats.totalPL, avgPL, winRate, closedCount: stats.closedCount, monthlyPL: stats.monthlyPL, yearlyPL: stats.yearlyPL };
-  }, [stats]);
 
   // All symbols ever traded for this plan (independent of filters)
   const [allSymbols, setAllSymbols] = useState<string[]>([]);
@@ -214,7 +207,6 @@ export default function TradeJournal() {
         changes.daysHeld = Math.round((new Date(closeDate).getTime() - new Date(openDate).getTime()) / (1000 * 60 * 60 * 24));
       }
       // Calculate P/L whenever exit price is available
-      const effectiveStatus = changes.tradeStatus ?? entry.tradeStatus;
       if (exitPrice != null) {
         const isStock = (entry.instrumentType ?? 'Option') === 'Stock';
         if (isStock) {
@@ -301,7 +293,6 @@ export default function TradeJournal() {
 
   const now = new Date();
   const monthName = now.toLocaleString('default', { month: 'long' });
-  const year = now.getFullYear();
 
   return (
     <div className="space-y-4">

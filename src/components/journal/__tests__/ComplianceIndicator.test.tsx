@@ -7,7 +7,9 @@ import type { Strategy } from '../../../types/tradingPlan';
 function makeEntry(overrides: Partial<TradeJournalEntry> = {}): TradeJournalEntry {
   return {
     id: '1',
+    instrumentType: 'Option',
     stockSymbol: 'AAPL',
+    campaign: '',
     openDate: new Date('2025-01-01'),
     expirationDate: new Date('2025-02-14'),
     optionType: 'Put',
@@ -18,6 +20,8 @@ function makeEntry(overrides: Partial<TradeJournalEntry> = {}): TradeJournalEntr
     breakEvenPrice: 145,
     strikePrice: 150,
     premium: 5,
+    contracts: 1,
+    quantity: 0,
     cashReserve: 15000,
     fees: 1,
     tradeStatus: 'Open',
