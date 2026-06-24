@@ -401,7 +401,6 @@ export default function TradeJournal() {
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('annualizedROR')}>Ann ROR{sortIndicator('annualizedROR')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginAnnualizedROR')}>Margin ROR{sortIndicator('marginAnnualizedROR')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('tradeStatus')}>Status{sortIndicator('tradeStatus')}</th>
-                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('cashReserve')}>Cash Res{sortIndicator('cashReserve')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginCashReserve')}>Margin Res{sortIndicator('marginCashReserve')}</th>
               </tr>
             </thead>
@@ -467,7 +466,6 @@ export default function TradeJournal() {
                   <td className="px-2 py-1 text-text-secondary">{entry.annualizedROR != null ? `${entry.annualizedROR.toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${entry.marginAnnualizedROR.toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
-                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.cashReserve || ''} onBlur={(e) => saveField(entry.id, 'cashReserve', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
                 </tr>
                     ))}
@@ -500,7 +498,6 @@ export default function TradeJournal() {
                   <td className="px-2 py-1 text-text-secondary">{entry.annualizedROR != null ? `${entry.annualizedROR.toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${entry.marginAnnualizedROR.toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
-                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.cashReserve || ''} onBlur={(e) => saveField(entry.id, 'cashReserve', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
                 </tr>
                 ))

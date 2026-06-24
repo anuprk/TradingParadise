@@ -393,10 +393,6 @@ export default function InlineTradeRow({
             <option value="Assigned">Assigned</option>
           </select>
         </td>
-        {/* Cash Reserve */}
-        <td className="px-2 py-1">
-          <input type="number" step="0.01" className={inputClass + ' w-16'} placeholder="0" value={form.cashReserve} onChange={(e) => handleChange('cashReserve', e.target.value)} tabIndex={0} />
-        </td>
         {/* Margin Reserve */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
       </tr>
