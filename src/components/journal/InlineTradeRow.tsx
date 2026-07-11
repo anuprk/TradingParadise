@@ -177,10 +177,10 @@ export default function InlineTradeRow({
         ? Number(form.ditc)
         : Math.max(0, Math.round((now.getTime() - openDate.getTime()) / (1000 * 60 * 60 * 24)));
 
-      // Auto-calculate Margin Reserve = 20% of (Strike * 100)
+      // Auto-calculate Margin Reserve = 20% of (Strike * 100), capped at 10000
       const marginCashReserve = form.marginCashReserve
         ? Number(form.marginCashReserve)
-        : strikePrice * 100 * 0.20;
+        : Math.min(strikePrice * 100 * 0.20, 10000);
 
       // Auto-calculate Days Held = Close Date - Open Date
       const daysHeld = form.daysHeld
@@ -394,6 +394,8 @@ export default function InlineTradeRow({
           </select>
         </td>
         {/* Margin Reserve */}
+        <td className="px-2 py-1 text-text-secondary text-xs">—</td>
+        {/* Note */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
       </tr>
       {error && (

@@ -36,6 +36,7 @@ export default function TradeJournal() {
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [showInlineAdd, setShowInlineAdd] = useState(false);
+  const [insertAfterId, setInsertAfterId] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<'none' | 'stockSymbol' | 'expirationDate' | 'strategyId' | 'campaign'>('none');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -53,7 +54,27 @@ export default function TradeJournal() {
     const id = await addEntry(entry);
     if (id) {
       addToast('Trade added', 'success');
+      setShowInlineAdd(false);
+      setInsertAfterId(null);
     }
+  }, [addEntry, addToast]);
+
+  const handleDuplicate = useCallback(async (source: TradeJournalEntry) => {
+    const now = new Date();
+    const duplicate: TradeJournalEntry = {
+      ...source,
+      id: crypto.randomUUID(),
+      exitPrice: undefined,
+      closeDate: undefined,
+      profitLoss: undefined,
+      winLoss: null,
+      daysHeld: undefined,
+      tradeStatus: 'Open',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const id = await addEntry(duplicate);
+    if (id) addToast('Trade duplicated', 'success');
   }, [addEntry, addToast]);
 
   const strategies = useMemo(
@@ -200,7 +221,7 @@ export default function TradeJournal() {
         const currentMargin = entry.marginCashReserve;
         const autoCalcValue = (entry.strikePrice ?? 0) * 100 * 0.20;
         if (!currentMargin || Math.abs(currentMargin - autoCalcValue) < 1) {
-          changes.marginCashReserve = strikePrice * 100 * 0.20;
+          changes.marginCashReserve = Math.min(strikePrice * 100 * 0.20, 10000);
         }
       }
       if (closeDate && openDate) {
@@ -402,16 +423,17 @@ export default function TradeJournal() {
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginAnnualizedROR')}>Margin ROR{sortIndicator('marginAnnualizedROR')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('tradeStatus')}>Status{sortIndicator('tradeStatus')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginCashReserve')}>Margin Res{sortIndicator('marginCashReserve')}</th>
+                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase">Note</th>
               </tr>
             </thead>
             <tbody className="bg-surface-secondary divide-y divide-border">
-              {showInlineAdd && activePlanId && (
+              {showInlineAdd && activePlanId && !insertAfterId && (
                 <InlineTradeRow
                   strategies={strategies}
                   portfolios={portfolios}
                   planId={activePlanId}
                   onSave={handleInlineSave}
-                  onCancel={() => setShowInlineAdd(false)}
+                  onCancel={() => { setShowInlineAdd(false); setInsertAfterId(null); }}
                 />
               )}
               {groupedData ? (
@@ -434,19 +456,15 @@ export default function TradeJournal() {
                       </td>
                     </tr>
                     {!collapsedGroups.has(group.label) && group.items.map((entry) => (
-                <tr key={entry.id} className="hover:bg-surface-tertiary group">
-                  <td className="px-1 py-1">
-                    <button
-                      type="button"
-                      className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-error transition-opacity p-0.5 rounded"
-                      onClick={() => setDeleteTargetId(entry.id)}
-                      title="Delete"
-                    >
-                      <X size={12} />
-                    </button>
+                <React.Fragment key={entry.id}>
+                <tr className="hover:bg-surface-tertiary group">
+                  <td className="px-1 py-1 whitespace-nowrap">
+                    <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-error transition-opacity p-0.5 rounded" onClick={() => setDeleteTargetId(entry.id)} title="Delete"><X size={12} /></button>
+                    <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-text-primary transition-opacity p-0.5 rounded ml-0.5" onClick={() => handleDuplicate(entry)} title="Duplicate">⧉</button>
+                    <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-text-primary transition-opacity p-0.5 rounded ml-0.5" onClick={() => { setInsertAfterId(entry.id); setShowInlineAdd(true); }} title="Insert below">+</button>
                   </td>
                   <td className="px-2 py-1"><span className={`text-xs px-1.5 py-0.5 rounded ${entry.instrumentType === 'Stock' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>{entry.instrumentType === 'Stock' ? 'STK' : 'OPT'}</span></td>
-                  <td className="px-2 py-1"><input className={ic + ' w-14 font-medium'} defaultValue={entry.stockSymbol} onBlur={(e) => saveField(entry.id, 'stockSymbol', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1"><div className="flex items-center gap-1"><input className={ic + ' w-14 font-medium'} defaultValue={entry.stockSymbol} onBlur={(e) => saveField(entry.id, 'stockSymbol', e.target.value, entry)} /><a href={`https://finance.yahoo.com/quote/${entry.stockSymbol}/`} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 text-text-accent hover:underline text-[10px]" title="Yahoo Finance">↗</a></div></td>
                   <td className="px-2 py-1"><input className={ic + ' w-20'} defaultValue={entry.campaign || ''} onBlur={(e) => saveField(entry.id, 'campaign', e.target.value, entry)} placeholder="" /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.openDate)} onBlur={(e) => saveField(entry.id, 'openDate', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.expirationDate)} onBlur={(e) => saveField(entry.id, 'expirationDate', e.target.value, entry)} /></td>
@@ -467,18 +485,32 @@ export default function TradeJournal() {
                   <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${entry.marginAnnualizedROR.toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1"><input className={ic + ' w-24'} defaultValue={entry.notes || ''} onBlur={(e) => saveField(entry.id, 'notes', e.target.value, entry)} placeholder="Note..." title={entry.notes || ''} /></td>
                 </tr>
+                {showInlineAdd && insertAfterId === entry.id && activePlanId && (
+                  <InlineTradeRow
+                    strategies={strategies}
+                    portfolios={portfolios}
+                    planId={activePlanId}
+                    onSave={handleInlineSave}
+                    onCancel={() => { setShowInlineAdd(false); setInsertAfterId(null); }}
+                  />
+                )}
+                </React.Fragment>
                     ))}
                   </React.Fragment>
                 ))
               ) : (
                 sortedEntries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-surface-tertiary group">
-                  <td className="px-1 py-1">
+                <React.Fragment key={entry.id}>
+                <tr className="hover:bg-surface-tertiary group">
+                  <td className="px-1 py-1 whitespace-nowrap">
                     <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-error transition-opacity p-0.5 rounded" onClick={() => setDeleteTargetId(entry.id)} title="Delete"><X size={12} /></button>
+                    <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-text-primary transition-opacity p-0.5 rounded ml-0.5" onClick={() => handleDuplicate(entry)} title="Duplicate">⧉</button>
+                    <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-text-primary transition-opacity p-0.5 rounded ml-0.5" onClick={() => { setInsertAfterId(entry.id); setShowInlineAdd(true); }} title="Insert below">+</button>
                   </td>
                   <td className="px-2 py-1"><span className={`text-xs px-1.5 py-0.5 rounded ${entry.instrumentType === 'Stock' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>{entry.instrumentType === 'Stock' ? 'STK' : 'OPT'}</span></td>
-                  <td className="px-2 py-1"><input className={ic + ' w-14 font-medium'} defaultValue={entry.stockSymbol} onBlur={(e) => saveField(entry.id, 'stockSymbol', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1"><div className="flex items-center gap-1"><input className={ic + ' w-14 font-medium'} defaultValue={entry.stockSymbol} onBlur={(e) => saveField(entry.id, 'stockSymbol', e.target.value, entry)} /><a href={`https://finance.yahoo.com/quote/${entry.stockSymbol}/`} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 text-text-accent hover:underline text-[10px]" title="Yahoo Finance">↗</a></div></td>
                   <td className="px-2 py-1"><input className={ic + ' w-20'} defaultValue={entry.campaign || ''} onBlur={(e) => saveField(entry.id, 'campaign', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.openDate)} onBlur={(e) => saveField(entry.id, 'openDate', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.expirationDate)} onBlur={(e) => saveField(entry.id, 'expirationDate', e.target.value, entry)} /></td>
@@ -499,7 +531,18 @@ export default function TradeJournal() {
                   <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${entry.marginAnnualizedROR.toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1"><input className={ic + ' w-24'} defaultValue={entry.notes || ''} onBlur={(e) => saveField(entry.id, 'notes', e.target.value, entry)} placeholder="Note..." title={entry.notes || ''} /></td>
                 </tr>
+                {showInlineAdd && insertAfterId === entry.id && activePlanId && (
+                  <InlineTradeRow
+                    strategies={strategies}
+                    portfolios={portfolios}
+                    planId={activePlanId}
+                    onSave={handleInlineSave}
+                    onCancel={() => { setShowInlineAdd(false); setInsertAfterId(null); }}
+                  />
+                )}
+                </React.Fragment>
                 ))
               )}
             </tbody>
