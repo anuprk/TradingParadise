@@ -155,12 +155,15 @@ export default function TradeJournal() {
     const totalOpenCount = allOpenTrades.length;
 
     // Distribution by underlying symbol
-    const symbolCounts = new Map<string, number>();
+    const symbolData = new Map<string, { count: number; margin: number }>();
     for (const e of allOpenTrades) {
-      symbolCounts.set(e.stockSymbol, (symbolCounts.get(e.stockSymbol) ?? 0) + 1);
+      const existing = symbolData.get(e.stockSymbol) ?? { count: 0, margin: 0 };
+      existing.count += 1;
+      existing.margin += e.marginCashReserve ?? 0;
+      symbolData.set(e.stockSymbol, existing);
     }
-    const distribution = Array.from(symbolCounts.entries())
-      .map(([symbol, count]) => ({ symbol, count, pct: totalOpenCount > 0 ? (count / totalOpenCount) * 100 : 0 }))
+    const distribution = Array.from(symbolData.entries())
+      .map(([symbol, { count, margin }]) => ({ symbol, count, pct: totalOpenCount > 0 ? (count / totalOpenCount) * 100 : 0, margin }))
       .sort((a, b) => b.count - a.count);
 
     return { totalMarginRequired, totalOpenCount, distribution };
@@ -343,10 +346,11 @@ export default function TradeJournal() {
             <div className="flex-1 min-w-0">
               <p className="text-[10px] text-text-secondary uppercase mb-1">Distribution by Underlying</p>
               <div className="flex flex-wrap gap-2">
-                {bannerStats.distribution.map(({ symbol, count, pct }) => (
+                {bannerStats.distribution.map(({ symbol, count, pct, margin }) => (
                   <span key={symbol} className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface-secondary rounded text-xs">
                     <span className="font-medium text-text-primary">{symbol}</span>
                     <span className="text-text-secondary">{count} ({pct.toFixed(0)}%)</span>
+                    <span className="text-text-secondary">· {formatCurrency(margin)}</span>
                   </span>
                 ))}
               </div>
