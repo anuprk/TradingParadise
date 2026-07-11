@@ -3,7 +3,7 @@ import { useJournal } from '../../hooks/useJournal';
 import { useTradingPlan } from '../../hooks/useTradingPlan';
 import { usePortfolio } from '../../hooks/usePortfolio';
 import { useAppStore } from '../../stores/appStore';
-import { getDistinctSymbols } from '../../db/journalRepository';
+import { getDistinctSymbols, filterJournalEntries } from '../../db/journalRepository';
 import { formatProfitLoss, formatCurrency } from '../../utils/formatters';
 import Button from '../ui/Button';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -28,7 +28,7 @@ function toDateInput(date: Date | undefined | null): string {
 }
 
 export default function TradeJournal() {
-  const { entries, filters, sortField, sortDirection, setSort, setFilters, isLoading, deleteEntry, addEntry, updateEntry, totalCount, currentPage, setPage, stats } = useJournal();
+  const { entries, filters, sortField, sortDirection, setSort, setFilters, isLoading, deleteEntry, addEntry, updateEntry, totalCount, currentPage, setPage } = useJournal();
   const { plan } = useTradingPlan();
   const { portfolios } = usePortfolio();
   const activePlanId = useAppStore((s) => s.activePlanId);
@@ -138,31 +138,33 @@ export default function TradeJournal() {
     return () => { cancelled = true; };
   }, [activePlanId, entries]); // Re-fetch when entries change (new trade added)
 
-  // Monthly stats for the performance banner — always based on closed trades from stats (independent of status filter)
-  const monthlyStats = useMemo(() => {
-    // Open trades count from current page entries in current month
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+  // Banner stats — always based on ALL open trades for this plan (independent of table filters)
+  const [allOpenTrades, setAllOpenTrades] = useState<TradeJournalEntry[]>([]);
+  useEffect(() => {
+    if (!activePlanId) return;
+    let cancelled = false;
+    filterJournalEntries({ planId: activePlanId, tradeStatus: 'Open' }, 0, 500)
+      .then(({ entries: openEntries }) => {
+        if (!cancelled) setAllOpenTrades(openEntries);
+      });
+    return () => { cancelled = true; };
+  }, [activePlanId, entries]); // Re-fetch when entries change
 
-    const monthEntries = entries.filter((e) => {
-      const d = e.openDate ? new Date(e.openDate) : null;
-      return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear && e.tradeStatus === 'Open';
-    });
-    const openTrades = monthEntries.length;
+  const bannerStats = useMemo(() => {
+    const totalMarginRequired = allOpenTrades.reduce((s, e) => s + (e.marginCashReserve ?? 0), 0);
+    const totalOpenCount = allOpenTrades.length;
 
-    // Total margin across all visible entries (open positions)
-    const totalMarginRequired = entries.reduce((s, e) => s + (e.marginCashReserve ?? 0), 0);
+    // Distribution by underlying symbol
+    const symbolCounts = new Map<string, number>();
+    for (const e of allOpenTrades) {
+      symbolCounts.set(e.stockSymbol, (symbolCounts.get(e.stockSymbol) ?? 0) + 1);
+    }
+    const distribution = Array.from(symbolCounts.entries())
+      .map(([symbol, count]) => ({ symbol, count, pct: totalOpenCount > 0 ? (count / totalOpenCount) * 100 : 0 }))
+      .sort((a, b) => b.count - a.count);
 
-    // All other metrics come from stats (computed from ALL non-open trades across all pages)
-    const winRate = stats.monthlyWinRate;
-    const weeklyIncome = stats.weeklyPL;
-    const totalPremiumReceived = stats.monthlyPremiumReceived;
-    const totalPremiumKept = stats.monthlyPL;
-    const premiumKeptPct = totalPremiumReceived > 0 ? (totalPremiumKept / totalPremiumReceived) * 100 : 0;
-
-    return { totalTrades: stats.monthlyClosedCount, openTrades, winRate, weeklyIncome, totalPremiumReceived, totalPremiumKept, premiumKeptPct, totalMarginRequired };
-  }, [entries, stats]);
+    return { totalMarginRequired, totalOpenCount, distribution };
+  }, [allOpenTrades]);
 
   // Debounced save for inline edits
   const saveField = useCallback((entryId: string, field: string, value: string, entry: TradeJournalEntry) => {
@@ -313,39 +315,43 @@ export default function TradeJournal() {
   const sc = 'w-full bg-transparent border-0 border-b border-transparent focus:border-text-accent focus:outline-none text-xs py-1.5 text-text-primary';
 
   const now = new Date();
-  const monthName = now.toLocaleString('default', { month: 'long' });
+
+  // Helper: determine if a trade is nearing expiration (within 7 days)
+  function getRowClass(entry: TradeJournalEntry): string {
+    if (entry.tradeStatus !== 'Open') return 'hover:bg-surface-tertiary group';
+    const exp = entry.expirationDate ? new Date(entry.expirationDate) : null;
+    if (!exp) return 'hover:bg-surface-tertiary group';
+    const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysLeft <= 7 && daysLeft >= 0) return 'hover:bg-surface-tertiary group bg-warning/10 border-l-2 border-l-warning';
+    return 'hover:bg-surface-tertiary group';
+  }
 
   return (
     <div className="space-y-4">
-      {/* Monthly Performance Banner */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">{monthName} Trades</p>
-          <p className="text-lg font-bold text-text-primary">{monthlyStats.totalTrades}</p>
-        </div>
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Open Trades</p>
-          <p className="text-lg font-bold text-text-primary">{monthlyStats.openTrades}</p>
-        </div>
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Win Rate</p>
-          <p className="text-lg font-bold text-text-primary">{monthlyStats.winRate.toFixed(1)}%</p>
-        </div>
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Weekly Income</p>
-          <p className={`text-lg font-bold ${monthlyStats.weeklyIncome >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(monthlyStats.weeklyIncome)}</p>
-        </div>
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Premium Received</p>
-          <p className="text-lg font-bold text-success">{formatCurrency(monthlyStats.totalPremiumReceived)}</p>
-        </div>
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Premium Kept ({monthlyStats.premiumKeptPct.toFixed(0)}%)</p>
-          <p className={`text-lg font-bold ${monthlyStats.totalPremiumKept >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(monthlyStats.totalPremiumKept)}</p>
-        </div>
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Total Margin Req</p>
-          <p className="text-lg font-bold text-text-primary">{formatCurrency(monthlyStats.totalMarginRequired)}</p>
+      {/* Open Positions Banner */}
+      <div className="bg-surface-tertiary rounded-lg p-4">
+        <div className="flex flex-wrap items-start gap-6">
+          <div className="text-center">
+            <p className="text-[10px] text-text-secondary uppercase">Open Positions</p>
+            <p className="text-lg font-bold text-text-primary">{bannerStats.totalOpenCount}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-text-secondary uppercase">Total Margin Req</p>
+            <p className="text-lg font-bold text-text-primary">{formatCurrency(bannerStats.totalMarginRequired)}</p>
+          </div>
+          {bannerStats.distribution.length > 0 && (
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-text-secondary uppercase mb-1">Distribution by Underlying</p>
+              <div className="flex flex-wrap gap-2">
+                {bannerStats.distribution.map(({ symbol, count, pct }) => (
+                  <span key={symbol} className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface-secondary rounded text-xs">
+                    <span className="font-medium text-text-primary">{symbol}</span>
+                    <span className="text-text-secondary">{count} ({pct.toFixed(0)}%)</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -457,7 +463,7 @@ export default function TradeJournal() {
                     </tr>
                     {!collapsedGroups.has(group.label) && group.items.map((entry) => (
                 <React.Fragment key={entry.id}>
-                <tr className="hover:bg-surface-tertiary group">
+                <tr className={getRowClass(entry)}>
                   <td className="px-1 py-1 whitespace-nowrap">
                     <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-error transition-opacity p-0.5 rounded" onClick={() => setDeleteTargetId(entry.id)} title="Delete"><X size={12} /></button>
                     <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-text-primary transition-opacity p-0.5 rounded ml-0.5" onClick={() => handleDuplicate(entry)} title="Duplicate">⧉</button>
@@ -503,7 +509,7 @@ export default function TradeJournal() {
               ) : (
                 sortedEntries.map((entry) => (
                 <React.Fragment key={entry.id}>
-                <tr className="hover:bg-surface-tertiary group">
+                <tr className={getRowClass(entry)}>
                   <td className="px-1 py-1 whitespace-nowrap">
                     <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-error transition-opacity p-0.5 rounded" onClick={() => setDeleteTargetId(entry.id)} title="Delete"><X size={12} /></button>
                     <button type="button" className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-text-primary transition-opacity p-0.5 rounded ml-0.5" onClick={() => handleDuplicate(entry)} title="Duplicate">⧉</button>
