@@ -4,7 +4,8 @@ import { useAppStore } from '../../stores/appStore';
 
 export default function Header() {
   const signOut = useAuthStore((s) => s.signOut);
-  const { theme, toggleTheme } = useAppStore();
+  const theme = useAppStore((s) => s.theme);
+  const toggleTheme = useAppStore((s) => s.toggleTheme);
 
   return (
     <header className="h-14 border-b border-border bg-surface-secondary flex items-center justify-between px-4 shrink-0">

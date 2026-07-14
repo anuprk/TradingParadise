@@ -158,18 +158,21 @@ export default function TradeJournal() {
     let cancelled = false;
     const now2 = new Date();
     const monthStart = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, '0')}-01`;
-    supabase
-      .from('journal_entries')
-      .select('profit_loss')
-      .eq('plan_id', activePlanId)
-      .eq('trade_status', 'Closed')
-      .gte('close_date', monthStart)
-      .then(({ data }) => {
-        if (!cancelled && data) {
-          const pl = data.reduce((s: number, r: Record<string, unknown>) => s + (Number(r.profit_loss) || 0), 0);
-          setMonthlyClosedPL(pl);
-        }
-      });
+
+    (async () => {
+      const { data } = await supabase
+        .from('journal_entries')
+        .select('profit_loss')
+        .eq('plan_id', activePlanId)
+        .eq('trade_status', 'Closed')
+        .gte('close_date', monthStart);
+
+      if (!cancelled && data) {
+        const pl = data.reduce((s: number, r: Record<string, unknown>) => s + (Number(r.profit_loss) || 0), 0);
+        setMonthlyClosedPL(pl);
+      }
+    })();
+
     return () => { cancelled = true; };
   }, [activePlanId, entries]);
 
@@ -321,16 +324,7 @@ export default function TradeJournal() {
     return sortDirection === 'asc' ? ' ▲' : ' ▼';
   }
 
-  if (isLoading) {
-    return <div className="p-6 text-center text-text-secondary">Loading journal entries…</div>;
-  }
-
-  const ic = 'w-full bg-transparent border-0 border-b border-transparent focus:border-text-accent focus:outline-none text-xs px-1 py-1.5 text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none';
-  const sc = 'w-full bg-transparent border-0 border-b border-transparent focus:border-text-accent focus:outline-none text-xs py-1.5 text-text-primary';
-
-  const now = new Date();
-
-  // Symbol-based color bands for visual grouping
+  // Symbol-based color bands for visual grouping (must be before early return to satisfy hooks rules)
   const symbolColorMap = useMemo(() => {
     const colors = [
       'bg-emerald-500/5',
@@ -352,11 +346,18 @@ export default function TradeJournal() {
     return map;
   }, [sortedEntries]);
 
-  // Helper: determine row class (expiration highlight + symbol color band)
+  if (isLoading) {
+    return <div className="p-6 text-center text-text-secondary">Loading journal entries…</div>;
+  }
+
+  const ic = 'w-full bg-transparent border-0 border-b border-transparent focus:border-text-accent focus:outline-none text-xs px-1 py-1.5 text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none';
+  const sc = 'w-full bg-transparent border-0 border-b border-transparent focus:border-text-accent focus:outline-none text-xs py-1.5 text-text-primary';
+
+  const now = new Date();
+
   function getRowClass(entry: TradeJournalEntry): string {
     const symbolBg = symbolColorMap.get(entry.stockSymbol) ?? '';
     const base = `hover:bg-surface-tertiary/50 group ${symbolBg}`;
-
     if (entry.tradeStatus !== 'Open') return base;
     const exp = entry.expirationDate ? new Date(entry.expirationDate) : null;
     if (!exp) return base;
