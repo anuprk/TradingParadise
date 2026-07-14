@@ -331,14 +331,39 @@ export default function TradeJournal() {
 
   const now = new Date();
 
-  // Helper: determine if a trade is nearing expiration (within 7 days)
+  // Symbol-based color bands for visual grouping
+  const symbolColorMap = useMemo(() => {
+    const colors = [
+      'bg-emerald-500/5',
+      'bg-sky-500/5',
+      'bg-amber-500/5',
+      'bg-purple-500/5',
+      'bg-rose-500/5',
+      'bg-teal-500/5',
+      'bg-orange-500/5',
+      'bg-indigo-500/5',
+      'bg-lime-500/5',
+      'bg-pink-500/5',
+    ];
+    const map = new Map<string, string>();
+    const symbols = [...new Set(sortedEntries.map((e) => e.stockSymbol))];
+    symbols.forEach((sym, i) => {
+      map.set(sym, colors[i % colors.length]);
+    });
+    return map;
+  }, [sortedEntries]);
+
+  // Helper: determine row class (expiration highlight + symbol color band)
   function getRowClass(entry: TradeJournalEntry): string {
-    if (entry.tradeStatus !== 'Open') return 'hover:bg-surface-tertiary group';
+    const symbolBg = symbolColorMap.get(entry.stockSymbol) ?? '';
+    const base = `hover:bg-surface-tertiary/50 group ${symbolBg}`;
+
+    if (entry.tradeStatus !== 'Open') return base;
     const exp = entry.expirationDate ? new Date(entry.expirationDate) : null;
-    if (!exp) return 'hover:bg-surface-tertiary group';
+    if (!exp) return base;
     const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysLeft <= 7 && daysLeft >= 0) return 'hover:bg-surface-tertiary group bg-warning/10 border-l-2 border-l-warning';
-    return 'hover:bg-surface-tertiary group';
+    if (daysLeft <= 7 && daysLeft >= 0) return `${base} border-l-2 border-l-warning`;
+    return base;
   }
 
   return (
