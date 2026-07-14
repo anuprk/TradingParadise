@@ -150,24 +150,28 @@ export default function TradeJournal() {
     return () => { cancelled = true; };
   }, [activePlanId, entries]); // Re-fetch when entries change
 
+  // Closed trades this month (for monthly P/L in banner)
+  const [monthlyClosedPL, setMonthlyClosedPL] = useState(0);
+  useEffect(() => {
+    if (!activePlanId) return;
+    let cancelled = false;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    filterJournalEntries({ planId: activePlanId, tradeStatus: 'Closed', dateFrom: monthStart }, 0, 500)
+      .then(({ entries: closedEntries }) => {
+        if (!cancelled) {
+          const pl = closedEntries.reduce((s, e) => s + (e.profitLoss ?? 0), 0);
+          setMonthlyClosedPL(pl);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [activePlanId, entries]);
+
   const bannerStats = useMemo(() => {
     const totalMarginRequired = allOpenTrades.reduce((s, e) => s + (e.marginCashReserve ?? 0), 0);
     const totalOpenCount = allOpenTrades.length;
-
-    // Distribution by underlying symbol
-    const symbolData = new Map<string, { count: number; margin: number }>();
-    for (const e of allOpenTrades) {
-      const existing = symbolData.get(e.stockSymbol) ?? { count: 0, margin: 0 };
-      existing.count += 1;
-      existing.margin += e.marginCashReserve ?? 0;
-      symbolData.set(e.stockSymbol, existing);
-    }
-    const distribution = Array.from(symbolData.entries())
-      .map(([symbol, { count, margin }]) => ({ symbol, count, pct: totalOpenCount > 0 ? (count / totalOpenCount) * 100 : 0, margin }))
-      .sort((a, b) => b.count - a.count);
-
-    return { totalMarginRequired, totalOpenCount, distribution };
-  }, [allOpenTrades]);
+    return { totalMarginRequired, totalOpenCount, monthlyPL: monthlyClosedPL };
+  }, [allOpenTrades, monthlyClosedPL]);
 
   // Debounced save for inline edits
   const saveField = useCallback((entryId: string, field: string, value: string, entry: TradeJournalEntry) => {
@@ -201,6 +205,7 @@ export default function TradeJournal() {
         case 'tradeStatus': changes.tradeStatus = value as TradeJournalEntry['tradeStatus']; break;
         case 'strategyId': changes.strategyId = value; break;
         case 'currentStockPrice': changes.currentStockPrice = value ? Number(value) : undefined; break;
+        case 'notes': changes.notes = value; break;
         default: return;
       }
 
@@ -333,7 +338,7 @@ export default function TradeJournal() {
     <div className="space-y-4">
       {/* Open Positions Banner */}
       <div className="bg-surface-tertiary rounded-lg p-4">
-        <div className="flex flex-wrap items-start gap-6">
+        <div className="flex flex-wrap items-center gap-6">
           <div className="text-center">
             <p className="text-[10px] text-text-secondary uppercase">Open Positions</p>
             <p className="text-lg font-bold text-text-primary">{bannerStats.totalOpenCount}</p>
@@ -342,20 +347,10 @@ export default function TradeJournal() {
             <p className="text-[10px] text-text-secondary uppercase">Total Margin Req</p>
             <p className="text-lg font-bold text-text-primary">{formatCurrency(bannerStats.totalMarginRequired)}</p>
           </div>
-          {bannerStats.distribution.length > 0 && (
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-text-secondary uppercase mb-1">Distribution by Underlying</p>
-              <div className="flex flex-wrap gap-2">
-                {bannerStats.distribution.map(({ symbol, count, pct, margin }) => (
-                  <span key={symbol} className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface-secondary rounded text-xs">
-                    <span className="font-medium text-text-primary">{symbol}</span>
-                    <span className="text-text-secondary">{count} ({pct.toFixed(0)}%)</span>
-                    <span className="text-text-secondary">· {formatCurrency(margin)}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="text-center">
+            <p className="text-[10px] text-text-secondary uppercase">This Month P/L</p>
+            <p className={`text-lg font-bold ${bannerStats.monthlyPL >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(bannerStats.monthlyPL)}</p>
+          </div>
         </div>
       </div>
 
@@ -423,17 +418,16 @@ export default function TradeJournal() {
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase resize-x overflow-hidden">Prem Rcvd</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer resize-x overflow-hidden" onClick={() => handleSort('exitPrice')}>Exit{sortIndicator('exitPrice')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('closeDate')}>Close{sortIndicator('closeDate')}</th>
+                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase">Note</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('dte')}>DTE{sortIndicator('dte')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('ditc')}>DIT{sortIndicator('ditc')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('profitLoss')}>P/L{sortIndicator('profitLoss')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase">%Prem</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('winLoss')}>W/L{sortIndicator('winLoss')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('daysHeld')}>Days{sortIndicator('daysHeld')}</th>
-                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('annualizedROR')}>Ann ROR{sortIndicator('annualizedROR')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginAnnualizedROR')}>Margin ROR{sortIndicator('marginAnnualizedROR')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('tradeStatus')}>Status{sortIndicator('tradeStatus')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginCashReserve')}>Margin Res{sortIndicator('marginCashReserve')}</th>
-                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase">Note</th>
               </tr>
             </thead>
             <tbody className="bg-surface-secondary divide-y divide-border">
@@ -485,17 +479,16 @@ export default function TradeJournal() {
                   <td className="px-2 py-1 text-right text-text-secondary">{formatCurrency(entry.premium * (entry.contracts || 1) * 100)}</td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-14'} defaultValue={entry.exitPrice ?? ''} onBlur={(e) => saveField(entry.id, 'exitPrice', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.closeDate)} onBlur={(e) => saveField(entry.id, 'closeDate', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1"><input className={ic + ' w-24'} defaultValue={entry.notes || ''} onBlur={(e) => saveField(entry.id, 'notes', e.target.value, entry)} placeholder="Note..." title={entry.notes || ''} /></td>
                   <td className="px-2 py-1 text-text-secondary">{entry.dte || '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.ditc || '—'}</td>
                   <td className={`px-2 py-1 font-medium ${(entry.profitLoss ?? 0) >= 0 ? 'text-success' : 'text-error'}`}>{entry.profitLoss != null ? formatProfitLoss(entry.profitLoss) : '—'}</td>
-                  <td className={`px-2 py-1 ${entry.profitLoss != null && entry.premium ? ((entry.profitLoss / (entry.premium * (entry.contracts || 1) * 100)) >= 0 ? 'text-success' : 'text-error') : 'text-text-secondary'}`}>{entry.profitLoss != null && entry.premium ? `${((entry.profitLoss / (entry.premium * (entry.contracts || 1) * 100)) * 100).toFixed(1)}%` : '—'}</td>
+                  <td className={`px-2 py-1 ${entry.profitLoss != null && entry.premium ? (entry.profitLoss >= 0 ? 'text-success' : 'text-error') : 'text-text-secondary'}`}>{entry.profitLoss != null && entry.premium ? `${((entry.profitLoss / Math.abs(entry.premium * (entry.contracts || 1) * 100)) * 100).toFixed(1)}%` : '—'}</td>
                   <td className={`px-2 py-1 font-medium ${entry.winLoss === 'Win' ? 'text-success' : entry.winLoss === 'Loss' ? 'text-error' : ''}`}>{entry.winLoss || '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.daysHeld ?? '—'}</td>
-                  <td className="px-2 py-1 text-text-secondary">{entry.annualizedROR != null ? `${entry.annualizedROR.toFixed(1)}%` : '—'}</td>
-                  <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${entry.marginAnnualizedROR.toFixed(1)}%` : '—'}</td>
+                  <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${Math.abs(entry.marginAnnualizedROR).toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
-                  <td className="px-2 py-1"><input className={ic + ' w-24'} defaultValue={entry.notes || ''} onBlur={(e) => saveField(entry.id, 'notes', e.target.value, entry)} placeholder="Note..." title={entry.notes || ''} /></td>
                 </tr>
                 {showInlineAdd && insertAfterId === entry.id && activePlanId && (
                   <InlineTradeRow
@@ -531,17 +524,16 @@ export default function TradeJournal() {
                   <td className="px-2 py-1 text-right text-text-secondary">{formatCurrency(entry.premium * (entry.contracts || 1) * 100)}</td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-14'} defaultValue={entry.exitPrice ?? ''} onBlur={(e) => saveField(entry.id, 'exitPrice', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.closeDate)} onBlur={(e) => saveField(entry.id, 'closeDate', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1"><input className={ic + ' w-24'} defaultValue={entry.notes || ''} onBlur={(e) => saveField(entry.id, 'notes', e.target.value, entry)} placeholder="Note..." title={entry.notes || ''} /></td>
                   <td className="px-2 py-1 text-text-secondary">{entry.dte || '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.ditc || '—'}</td>
                   <td className={`px-2 py-1 font-medium ${(entry.profitLoss ?? 0) >= 0 ? 'text-success' : 'text-error'}`}>{entry.profitLoss != null ? formatProfitLoss(entry.profitLoss) : '—'}</td>
-                  <td className={`px-2 py-1 ${entry.profitLoss != null && entry.premium ? ((entry.profitLoss / (entry.premium * (entry.contracts || 1) * 100)) >= 0 ? 'text-success' : 'text-error') : 'text-text-secondary'}`}>{entry.profitLoss != null && entry.premium ? `${((entry.profitLoss / (entry.premium * (entry.contracts || 1) * 100)) * 100).toFixed(1)}%` : '—'}</td>
+                  <td className={`px-2 py-1 ${entry.profitLoss != null && entry.premium ? (entry.profitLoss >= 0 ? 'text-success' : 'text-error') : 'text-text-secondary'}`}>{entry.profitLoss != null && entry.premium ? `${((entry.profitLoss / Math.abs(entry.premium * (entry.contracts || 1) * 100)) * 100).toFixed(1)}%` : '—'}</td>
                   <td className={`px-2 py-1 font-medium ${entry.winLoss === 'Win' ? 'text-success' : entry.winLoss === 'Loss' ? 'text-error' : ''}`}>{entry.winLoss || '—'}</td>
                   <td className="px-2 py-1 text-text-secondary">{entry.daysHeld ?? '—'}</td>
-                  <td className="px-2 py-1 text-text-secondary">{entry.annualizedROR != null ? `${entry.annualizedROR.toFixed(1)}%` : '—'}</td>
-                  <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${entry.marginAnnualizedROR.toFixed(1)}%` : '—'}</td>
+                  <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${Math.abs(entry.marginAnnualizedROR).toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
-                  <td className="px-2 py-1"><input className={ic + ' w-24'} defaultValue={entry.notes || ''} onBlur={(e) => saveField(entry.id, 'notes', e.target.value, entry)} placeholder="Note..." title={entry.notes || ''} /></td>
                 </tr>
                 {showInlineAdd && insertAfterId === entry.id && activePlanId && (
                   <InlineTradeRow

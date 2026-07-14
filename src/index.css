@@ -10,7 +10,7 @@
   --breakpoint-xl: 1280px;
   --breakpoint-2xl: 1536px;
 
-  /* Dark mode color palette */
+  /* Dark mode color palette (default) */
   --color-surface-primary: #0f172a;    /* slate-900 — main background */
   --color-surface-secondary: #1e293b;  /* slate-800 — cards, sidebar */
   --color-surface-tertiary: #334155;   /* slate-700 — hover states, borders */
@@ -29,4 +29,19 @@ html,
 body {
   background-color: var(--color-surface-primary);
   color: var(--color-text-primary);
+}
+
+/* Light theme override */
+html.light {
+  --color-surface-primary: #f8fafc;    /* slate-50 */
+  --color-surface-secondary: #ffffff;  /* white */
+  --color-surface-tertiary: #e2e8f0;   /* slate-200 */
+  --color-text-primary: #0f172a;       /* slate-900 */
+  --color-text-secondary: #475569;     /* slate-600 */
+  --color-text-accent: #0284c7;        /* sky-600 */
+  --color-border: #cbd5e1;             /* slate-300 */
+  --color-input-bg: #ffffff;           /* white */
+  --color-success: #16a34a;            /* green-600 */
+  --color-error: #dc2626;              /* red-600 */
+  --color-warning: #d97706;            /* amber-600 */
 }

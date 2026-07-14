@@ -368,6 +368,8 @@ export default function InlineTradeRow({
         <td className="px-2 py-1">
           <input type="date" className={inputClass + ' w-28'} value={form.closeDate} onChange={(e) => handleChange('closeDate', e.target.value)} tabIndex={0} />
         </td>
+        {/* Note */}
+        <td className="px-2 py-1 text-text-secondary text-xs">—</td>
         {/* DTE (auto) */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
         {/* DIT (auto) */}
@@ -379,8 +381,6 @@ export default function InlineTradeRow({
         {/* W/L (auto) */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
         {/* Days (auto) */}
-        <td className="px-2 py-1 text-text-secondary text-xs">—</td>
-        {/* Ann ROR (auto) */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
         {/* Margin ROR (auto) */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
@@ -394,8 +394,6 @@ export default function InlineTradeRow({
           </select>
         </td>
         {/* Margin Reserve */}
-        <td className="px-2 py-1 text-text-secondary text-xs">—</td>
-        {/* Note */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
       </tr>
       {error && (
