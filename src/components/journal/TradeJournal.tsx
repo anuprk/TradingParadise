@@ -150,20 +150,27 @@ export default function TradeJournal() {
     return () => { cancelled = true; };
   }, [activePlanId, entries]); // Re-fetch when entries change
 
-  // Closed trades this month (for monthly P/L in banner)
+  // Closed trades this month (for monthly P/L in banner) - filter by close_date
   const [monthlyClosedPL, setMonthlyClosedPL] = useState(0);
   useEffect(() => {
     if (!activePlanId) return;
     let cancelled = false;
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    filterJournalEntries({ planId: activePlanId, tradeStatus: 'Closed', dateFrom: monthStart }, 0, 500)
-      .then(({ entries: closedEntries }) => {
-        if (!cancelled) {
-          const pl = closedEntries.reduce((s, e) => s + (e.profitLoss ?? 0), 0);
-          setMonthlyClosedPL(pl);
-        }
-      });
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    import('../../lib/supabase').then(({ supabase }) => {
+      supabase
+        .from('journal_entries')
+        .select('profit_loss')
+        .eq('plan_id', activePlanId)
+        .eq('trade_status', 'Closed')
+        .gte('close_date', monthStart)
+        .then(({ data }) => {
+          if (!cancelled && data) {
+            const pl = data.reduce((s: number, r: any) => s + (Number(r.profit_loss) || 0), 0);
+            setMonthlyClosedPL(pl);
+          }
+        });
+    });
     return () => { cancelled = true; };
   }, [activePlanId, entries]);
 

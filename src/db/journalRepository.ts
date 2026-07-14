@@ -227,8 +227,8 @@ export async function updateJournalEntry(
   if (changes.cashReserve !== undefined) updatePayload.cash_reserve = changes.cashReserve;
   if (changes.marginCashReserve !== undefined) updatePayload.margin_cash_reserve = changes.marginCashReserve;
   if (changes.fees !== undefined) updatePayload.fees = changes.fees;
-  if (changes.exitPrice !== undefined) updatePayload.exit_price = changes.exitPrice ?? null;
-  if (changes.closeDate !== undefined) updatePayload.close_date = changes.closeDate;
+  if ('exitPrice' in changes) updatePayload.exit_price = changes.exitPrice ?? null;
+  if ('closeDate' in changes) updatePayload.close_date = changes.closeDate ?? null;
   if ('profitLoss' in changes) updatePayload.profit_loss = changes.profitLoss ?? null;
   if ('winLoss' in changes) updatePayload.win_loss = changes.winLoss ?? null;
   if (changes.daysHeld !== undefined) updatePayload.days_held = changes.daysHeld;
