@@ -4,6 +4,7 @@ import { useTradingPlan } from '../../hooks/useTradingPlan';
 import { usePortfolio } from '../../hooks/usePortfolio';
 import { useAppStore } from '../../stores/appStore';
 import { getDistinctSymbols, filterJournalEntries } from '../../db/journalRepository';
+import { supabase } from '../../lib/supabase';
 import { formatProfitLoss, formatCurrency } from '../../utils/formatters';
 import Button from '../ui/Button';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -155,22 +156,20 @@ export default function TradeJournal() {
   useEffect(() => {
     if (!activePlanId) return;
     let cancelled = false;
-    const now = new Date();
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    import('../../lib/supabase').then(({ supabase }) => {
-      supabase
-        .from('journal_entries')
-        .select('profit_loss')
-        .eq('plan_id', activePlanId)
-        .eq('trade_status', 'Closed')
-        .gte('close_date', monthStart)
-        .then(({ data }) => {
-          if (!cancelled && data) {
-            const pl = data.reduce((s: number, r: any) => s + (Number(r.profit_loss) || 0), 0);
-            setMonthlyClosedPL(pl);
-          }
-        });
-    });
+    const now2 = new Date();
+    const monthStart = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, '0')}-01`;
+    supabase
+      .from('journal_entries')
+      .select('profit_loss')
+      .eq('plan_id', activePlanId)
+      .eq('trade_status', 'Closed')
+      .gte('close_date', monthStart)
+      .then(({ data }) => {
+        if (!cancelled && data) {
+          const pl = data.reduce((s: number, r: Record<string, unknown>) => s + (Number(r.profit_loss) || 0), 0);
+          setMonthlyClosedPL(pl);
+        }
+      });
     return () => { cancelled = true; };
   }, [activePlanId, entries]);
 
