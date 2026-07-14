@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from 'react';
 import {
   format,
 } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import { useTradingPlan } from '../hooks/useTradingPlan';
 import { usePlanStore } from '../stores/planStore';
@@ -135,8 +137,11 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-text-primary">Trading Dashboard</h1>
+    <div className="p-4 sm:p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-text-primary">Trading Dashboard</h1>
+        <a href="/journal" className="text-sm text-text-accent hover:underline">Open Journal →</a>
+      </div>
 
       {/* Tab Navigation */}
       <div className="flex border-b border-border overflow-x-auto">
@@ -286,7 +291,10 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-text-primary">{stats.planName}</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-text-primary">{stats.planName}</h2>
+        <Link to="/journal" className="text-sm text-text-accent hover:underline">Open Journal →</Link>
+      </div>
 
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -296,71 +304,92 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
         <StatCard label="Closed Trades" value={String(stats.closedCount)} />
       </div>
 
-      {/* Daily P/L */}
-      {stats.dailyPL.length > 0 && (
-        <Card title="Daily P/L (This Month)">
-          <div className="flex flex-wrap gap-1">
-            {stats.dailyPL.map((d) => (
-              <div key={d.date} className={`px-2 py-1 rounded text-[10px] font-medium ${d.pl >= 0 ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
-                {d.date.slice(5)} {d.pl >= 0 ? '+' : ''}{d.pl.toFixed(0)}
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      {/* 2-column layout: Chart + Strategy/Campaign */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Monthly P/L Chart */}
+        {stats.monthlyBreakdown.length > 0 && (
+          <Card title={`Monthly P/L (${currentYear})`}>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.monthlyBreakdown}>
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
+                  <Tooltip formatter={(v) => formatProfitLoss(Number(v))} />
+                  <Bar dataKey="pl">
+                    {stats.monthlyBreakdown.map((m, i) => (
+                      <Cell key={i} fill={m.pl >= 0 ? '#4ade80' : '#f87171'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        )}
 
-      {/* Weekly P/L */}
-      {stats.weeklyPL.length > 0 && (
-        <Card title="Weekly P/L (This Month)">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {stats.weeklyPL.map((w, i) => (
-              <div key={w.weekStart} className="bg-surface-tertiary rounded p-2 text-center">
-                <p className="text-[10px] text-text-secondary">Week {i + 1}</p>
-                <p className={`text-xs font-bold ${w.pl >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(w.pl)}</p>
-                <p className="text-[10px] text-text-secondary">{w.trades}t | {w.wins}W {w.losses}L</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+        {/* Strategy Performance */}
+        {strategyPerf.length > 0 && (
+          <Card title="Strategy Performance">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="text-left text-text-secondary border-b border-border">
+                  <th className="pb-1 pr-3">Strategy</th><th className="pb-1 pr-3">Trades</th><th className="pb-1 pr-3">Win Rate</th><th className="pb-1 pr-3">Total P/L</th><th className="pb-1">Avg P/L</th>
+                </tr></thead>
+                <tbody>{strategyPerf.map((row) => (
+                  <tr key={row.name} className="border-t border-border">
+                    <td className="py-1 pr-3 font-medium text-text-primary">{row.name}</td>
+                    <td className="py-1 pr-3 text-text-secondary">{row.trades}</td>
+                    <td className="py-1 pr-3">{row.winRate.toFixed(1)}%</td>
+                    <td className={`py-1 pr-3 font-medium ${row.totalPL >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(row.totalPL)}</td>
+                    <td className={`py-1 ${row.avgPL >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(row.avgPL)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </Card>
+        )}
 
-      {/* Monthly Breakdown */}
-      {stats.monthlyBreakdown.length > 0 && (
-        <Card title={`Monthly P/L (${currentYear})`}>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
-            {stats.monthlyBreakdown.map((m) => (
-              <div key={m.month} className="bg-surface-tertiary rounded p-2 text-center">
-                <p className="text-[10px] text-text-secondary">{m.label}</p>
-                <p className={`text-xs font-bold ${m.pl >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(m.pl)}</p>
-                <p className="text-[10px] text-text-secondary">{m.winRate.toFixed(0)}% | {m.trades}t</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+        {/* Campaign Performance */}
+        {stats.campaignStats.length > 0 && (
+          <Card title="Campaign Performance">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="text-left text-text-secondary border-b border-border">
+                  <th className="pb-1 pr-3">Campaign</th><th className="pb-1 pr-3">Trades</th><th className="pb-1 pr-3">Win Rate</th><th className="pb-1 pr-3">Total P/L</th><th className="pb-1">W/L</th>
+                </tr></thead>
+                <tbody>{stats.campaignStats.map((cs) => (
+                  <tr key={cs.campaign} className="border-t border-border">
+                    <td className="py-1 pr-3 font-medium text-text-primary">{cs.campaign}</td>
+                    <td className="py-1 pr-3 text-text-secondary">{cs.trades}</td>
+                    <td className="py-1 pr-3">{cs.winRate.toFixed(1)}%</td>
+                    <td className={`py-1 pr-3 font-medium ${cs.pl >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(cs.pl)}</td>
+                    <td className="py-1 text-text-secondary">{cs.wins}W / {cs.losses}L</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </Card>
+        )}
 
-      {/* Yearly Stats */}
-      {stats.yearlyStats.length > 0 && (
-        <Card title="Yearly Performance">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead><tr className="text-left text-text-secondary border-b border-border">
-                <th className="pb-1 pr-3">Year</th><th className="pb-1 pr-3">P/L</th><th className="pb-1 pr-3">Win Rate</th><th className="pb-1 pr-3">Trades</th><th className="pb-1 pr-3">Best</th><th className="pb-1">Worst</th>
-              </tr></thead>
-              <tbody>{stats.yearlyStats.map((ys) => (
-                <tr key={ys.year} className="border-t border-border">
-                  <td className="py-1 pr-3 font-medium">{ys.year}</td>
-                  <td className={`py-1 pr-3 font-medium ${ys.pl >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(ys.pl)}</td>
-                  <td className="py-1 pr-3">{ys.winRate.toFixed(1)}%</td>
-                  <td className="py-1 pr-3 text-text-secondary">{ys.trades}</td>
-                  <td className="py-1 pr-3 text-success">{formatCurrency(ys.highestWin)}</td>
-                  <td className="py-1 text-error">{formatCurrency(Math.abs(ys.highestLoss))}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+        {/* Daily P/L Chart */}
+        {stats.dailyPL.length > 0 && (
+          <Card title="Daily P/L (This Month)">
+            <div className="h-40">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.dailyPL}>
+                  <XAxis dataKey="date" tick={{ fontSize: 9 }} tickFormatter={(v) => v.slice(5)} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
+                  <Tooltip formatter={(v) => formatProfitLoss(Number(v))} />
+                  <Bar dataKey="pl">
+                    {stats.dailyPL.map((d, i) => (
+                      <Cell key={i} fill={d.pl >= 0 ? '#4ade80' : '#f87171'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        )}
+      </div>
 
       {/* Monthly Income Tracker */}
       {symbolMonthData.length > 0 && (
@@ -384,50 +413,6 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
                 {monthTotals.map((mt, idx) => <td key={idx} className={`py-2 px-2 text-right font-bold ${mt !== 0 ? (mt >= 0 ? 'text-success' : 'text-error') : ''}`}>{mt !== 0 ? (mt >= 0 ? '+' : '') + mt.toFixed(0) : ''}</td>)}
                 <td className={`py-2 px-2 text-right font-bold ${monthTotals.reduce((a, b) => a + b, 0) >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(monthTotals.reduce((a, b) => a + b, 0))}</td>
               </tr></tfoot>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* Strategy Performance */}
-      {strategyPerf.length > 0 && (
-        <Card title="Strategy Performance">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead><tr className="text-left text-text-secondary border-b border-border">
-                <th className="pb-1 pr-3">Strategy</th><th className="pb-1 pr-3">Trades</th><th className="pb-1 pr-3">Win Rate</th><th className="pb-1 pr-3">Total P/L</th><th className="pb-1">Avg P/L</th>
-              </tr></thead>
-              <tbody>{strategyPerf.map((row) => (
-                <tr key={row.name} className="border-t border-border">
-                  <td className="py-1 pr-3 font-medium text-text-primary">{row.name}</td>
-                  <td className="py-1 pr-3 text-text-secondary">{row.trades}</td>
-                  <td className="py-1 pr-3">{row.winRate.toFixed(1)}%</td>
-                  <td className={`py-1 pr-3 font-medium ${row.totalPL >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(row.totalPL)}</td>
-                  <td className={`py-1 ${row.avgPL >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(row.avgPL)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* Campaign Performance */}
-      {stats.campaignStats.length > 0 && (
-        <Card title="Campaign Performance">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead><tr className="text-left text-text-secondary border-b border-border">
-                <th className="pb-1 pr-3">Campaign</th><th className="pb-1 pr-3">Trades</th><th className="pb-1 pr-3">Win Rate</th><th className="pb-1 pr-3">Total P/L</th><th className="pb-1">W/L</th>
-              </tr></thead>
-              <tbody>{stats.campaignStats.map((cs) => (
-                <tr key={cs.campaign} className="border-t border-border">
-                  <td className="py-1 pr-3 font-medium text-text-primary">{cs.campaign}</td>
-                  <td className="py-1 pr-3 text-text-secondary">{cs.trades}</td>
-                  <td className="py-1 pr-3">{cs.winRate.toFixed(1)}%</td>
-                  <td className={`py-1 pr-3 font-medium ${cs.pl >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(cs.pl)}</td>
-                  <td className="py-1 text-text-secondary">{cs.wins}W / {cs.losses}L</td>
-                </tr>
-              ))}</tbody>
             </table>
           </div>
         </Card>
