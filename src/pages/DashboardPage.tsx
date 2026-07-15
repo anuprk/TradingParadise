@@ -2,11 +2,12 @@ import { useState, useMemo, useEffect } from 'react';
 import {
   format,
 } from 'date-fns';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Brush } from 'recharts';
 import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import { useTradingPlan } from '../hooks/useTradingPlan';
 import { usePlanStore } from '../stores/planStore';
+import { useAppStore } from '../stores/appStore';
 import { formatCurrency, formatProfitLoss } from '../utils/formatters';
 import { getJournalStats, listJournalEntries } from '../db/journalRepository';
 import { listPortfolios } from '../db/portfolioRepository';
@@ -140,7 +141,7 @@ export default function DashboardPage() {
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-text-primary">Trading Dashboard</h1>
-        <a href="/journal" className="text-sm text-text-accent hover:underline">Open Journal →</a>
+        <Link to="/journal" className="text-sm text-text-accent hover:underline">Open Journal →</Link>
       </div>
 
       {/* Tab Navigation */}
@@ -248,11 +249,41 @@ export default function DashboardPage() {
 function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries: TradeJournalEntry[]; plan: ReturnType<typeof useTradingPlan>['plan'] }) {
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const currentYear = new Date().getFullYear();
+  const setActivePlanId = useAppStore((s) => s.setActivePlanId);
 
   const strategies = plan ? [...plan.coreStrategies, ...plan.speculativeStrategies] : [];
   const strategyNameMap = new Map(strategies.map((s) => [s.id, s.name]));
 
-  // Monthly income tracker (symbol × month) — only non-open trades with a close date
+  // Cumulative daily P/L line data (all closed trades since plan start)
+  const dailyLineData = useMemo(() => {
+    const closed = entries.filter((e) => e.tradeStatus !== 'Open' && e.closeDate && e.profitLoss != null);
+    const byDay = new Map<string, number>();
+    for (const e of closed) {
+      const day = new Date(e.closeDate!).toISOString().split('T')[0];
+      byDay.set(day, (byDay.get(day) ?? 0) + (e.profitLoss ?? 0));
+    }
+    let cumulative = 0;
+    return Array.from(byDay.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, pl]) => { cumulative += pl; return { date, pl, cumulative }; });
+  }, [entries]);
+
+  // Monthly cumulative P/L line data
+  const monthlyLineData = useMemo(() => {
+    const closed = entries.filter((e) => e.tradeStatus !== 'Open' && e.closeDate && e.profitLoss != null);
+    const byMonth = new Map<string, number>();
+    for (const e of closed) {
+      const d = new Date(e.closeDate!);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      byMonth.set(key, (byMonth.get(key) ?? 0) + (e.profitLoss ?? 0));
+    }
+    let cumulative = 0;
+    return Array.from(byMonth.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, pl]) => { cumulative += pl; return { month, pl, cumulative }; });
+  }, [entries]);
+
+  // Monthly income tracker (symbol × month)
   const symbolMonthData = useMemo(() => {
     const symbolMap = new Map<string, Map<number, number>>();
     for (const e of entries) {
@@ -277,7 +308,7 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
     return t;
   }, [symbolMonthData]);
 
-  // Strategy performance from entries
+  // Strategy performance — use name map, fallback to "Unknown Strategy"
   const strategyPerf = useMemo(() => {
     const closed = entries.filter((e) => e.tradeStatus !== 'Open' && e.profitLoss != null);
     const grouped = new Map<string, TradeJournalEntry[]>();
@@ -285,7 +316,7 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
     return Array.from(grouped.entries()).map(([id, trades]) => {
       const wins = trades.filter((t) => t.winLoss === 'Win').length;
       const totalPL = trades.reduce((s, t) => s + (t.profitLoss ?? 0), 0);
-      return { name: strategyNameMap.get(id) || id, trades: trades.length, winRate: (wins / trades.length) * 100, totalPL, avgPL: totalPL / trades.length };
+      return { name: strategyNameMap.get(id) || 'Unknown Strategy', trades: trades.length, winRate: (wins / trades.length) * 100, totalPL, avgPL: totalPL / trades.length };
     }).sort((a, b) => b.totalPL - a.totalPL);
   }, [entries, strategyNameMap]);
 
@@ -293,7 +324,7 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-text-primary">{stats.planName}</h2>
-        <Link to="/journal" className="text-sm text-text-accent hover:underline">Open Journal →</Link>
+        <Link to="/journal" className="text-sm text-text-accent hover:underline" onClick={() => setActivePlanId(stats.planId)}>Open Journal →</Link>
       </div>
 
       {/* Summary */}
@@ -304,29 +335,43 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
         <StatCard label="Closed Trades" value={String(stats.closedCount)} />
       </div>
 
-      {/* 2-column layout: Chart + Strategy/Campaign */}
+      {/* Row 1: Daily + Monthly Line Charts side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Monthly P/L Chart */}
-        {stats.monthlyBreakdown.length > 0 && (
-          <Card title={`Monthly P/L (${currentYear})`}>
-            <div className="h-48">
+        {dailyLineData.length > 0 && (
+          <Card title="Daily Cumulative P/L">
+            <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.monthlyBreakdown}>
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                <LineChart data={dailyLineData}>
+                  <XAxis dataKey="date" tick={{ fontSize: 9 }} tickFormatter={(v) => v.slice(5)} />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
                   <Tooltip formatter={(v) => formatProfitLoss(Number(v))} />
-                  <Bar dataKey="pl">
-                    {stats.monthlyBreakdown.map((m, i) => (
-                      <Cell key={i} fill={m.pl >= 0 ? '#4ade80' : '#f87171'} />
-                    ))}
-                  </Bar>
-                </BarChart>
+                  <Line type="monotone" dataKey="cumulative" stroke="#38bdf8" strokeWidth={2} dot={false} />
+                  {dailyLineData.length > 30 && <Brush dataKey="date" height={20} stroke="#38bdf8" />}
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </Card>
         )}
 
-        {/* Strategy Performance */}
+        {monthlyLineData.length > 0 && (
+          <Card title="Monthly Cumulative P/L">
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyLineData}>
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
+                  <Tooltip formatter={(v) => formatProfitLoss(Number(v))} />
+                  <Line type="monotone" dataKey="cumulative" stroke="#4ade80" strokeWidth={2} dot={{ r: 3 }} />
+                  {monthlyLineData.length > 12 && <Brush dataKey="month" height={20} stroke="#4ade80" />}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Row 2: Strategy + Campaign Performance side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {strategyPerf.length > 0 && (
           <Card title="Strategy Performance">
             <div className="overflow-x-auto">
@@ -348,7 +393,6 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
           </Card>
         )}
 
-        {/* Campaign Performance */}
         {stats.campaignStats.length > 0 && (
           <Card title="Campaign Performance">
             <div className="overflow-x-auto">
@@ -366,26 +410,6 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
                   </tr>
                 ))}</tbody>
               </table>
-            </div>
-          </Card>
-        )}
-
-        {/* Daily P/L Chart */}
-        {stats.dailyPL.length > 0 && (
-          <Card title="Daily P/L (This Month)">
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.dailyPL}>
-                  <XAxis dataKey="date" tick={{ fontSize: 9 }} tickFormatter={(v) => v.slice(5)} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
-                  <Tooltip formatter={(v) => formatProfitLoss(Number(v))} />
-                  <Bar dataKey="pl">
-                    {stats.dailyPL.map((d, i) => (
-                      <Cell key={i} fill={d.pl >= 0 ? '#4ade80' : '#f87171'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
             </div>
           </Card>
         )}
