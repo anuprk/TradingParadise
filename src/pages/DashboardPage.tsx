@@ -5,6 +5,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Brush } from 'recharts';
 import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
+import PLCalendar from '../components/dashboard/PLCalendar';
 import { useTradingPlan } from '../hooks/useTradingPlan';
 import { usePlanStore } from '../stores/planStore';
 import { useAppStore } from '../stores/appStore';
@@ -334,6 +335,9 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
         <StatCard label="Win Rate" value={`${stats.winRate.toFixed(1)}%`} />
         <StatCard label="Closed Trades" value={String(stats.closedCount)} />
       </div>
+
+      {/* P/L Calendar */}
+      <PLCalendar entries={entries} totalAccountSize={plan?.accountSizing?.totalAccountSize} />
 
       {/* Row 1: Daily + Monthly Line Charts side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
