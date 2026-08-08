@@ -1,16 +1,22 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../stores/appStore';
 import { useTradingPlan } from '../hooks/useTradingPlan';
 import { filterJournalEntries } from '../db/journalRepository';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatProfitLoss } from '../utils/formatters';
+import { buildOccSymbol, fetchOptionQuotes, hasTastyTradeToken, getTastyTradeToken } from '../utils/tastytrade';
+import Card from '../components/ui/Card';
 import type { TradeJournalEntry } from '../types/journal';
+
+const CONCENTRATION_THRESHOLD = 30; // Warn if >30% in one symbol/strategy/campaign
 
 export default function PositionsPage() {
   const activePlanId = useAppStore((s) => s.activePlanId);
   const { plan } = useTradingPlan();
   const [positions, setPositions] = useState<TradeJournalEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [liveQuotes, setLiveQuotes] = useState<Map<string, { bid: number; ask: number; mid: number }>>(new Map());
+  const [quotesLoading, setQuotesLoading] = useState(false);
 
   const strategies = useMemo(() => {
     if (!plan) return new Map<string, string>();
@@ -26,135 +32,273 @@ export default function PositionsPage() {
       .finally(() => setIsLoading(false));
   }, [activePlanId]);
 
-  // Group by symbol
-  const bySymbol = useMemo(() => {
-    const map = new Map<string, TradeJournalEntry[]>();
-    for (const p of positions) {
-      const arr = map.get(p.stockSymbol) ?? [];
-      arr.push(p);
-      map.set(p.stockSymbol, arr);
-    }
-    return Array.from(map.entries())
-      .map(([symbol, trades]) => ({
-        symbol,
-        trades,
-        totalMargin: trades.reduce((s, t) => s + (t.marginCashReserve ?? 0), 0),
-        totalPremium: trades.reduce((s, t) => s + t.premium * (t.contracts || 1) * 100, 0),
-        count: trades.length,
-      }))
-      .sort((a, b) => b.totalMargin - a.totalMargin);
+  // Fetch live quotes from TastyTrade
+  const refreshQuotes = useCallback(async () => {
+    if (!hasTastyTradeToken() || positions.length === 0) return;
+    setQuotesLoading(true);
+    try {
+      const occSymbols = positions
+        .filter((p) => p.instrumentType !== 'Stock' && p.strikePrice > 0 && p.expirationDate)
+        .map((p) => buildOccSymbol(p.stockSymbol, new Date(p.expirationDate), p.optionType, p.strikePrice));
+
+      const quotes = await fetchOptionQuotes(occSymbols, getTastyTradeToken());
+      const mapped = new Map<string, { bid: number; ask: number; mid: number }>();
+      for (const [sym, q] of quotes) {
+        mapped.set(sym, { bid: q.bid, ask: q.ask, mid: q.mid });
+      }
+      setLiveQuotes(mapped);
+    } catch {}
+    setQuotesLoading(false);
   }, [positions]);
 
+  // Totals
   const totalMargin = positions.reduce((s, p) => s + (p.marginCashReserve ?? 0), 0);
   const totalPremium = positions.reduce((s, p) => s + p.premium * (p.contracts || 1) * 100, 0);
+  const totalCount = positions.length;
+
+  // Allocation by symbol
+  const symbolAlloc = useMemo(() => {
+    const map = new Map<string, { count: number; margin: number; premium: number }>();
+    for (const p of positions) {
+      const existing = map.get(p.stockSymbol) ?? { count: 0, margin: 0, premium: 0 };
+      existing.count++;
+      existing.margin += p.marginCashReserve ?? 0;
+      existing.premium += p.premium * (p.contracts || 1) * 100;
+      map.set(p.stockSymbol, existing);
+    }
+    return Array.from(map.entries())
+      .map(([symbol, d]) => ({ symbol, ...d, pct: totalCount > 0 ? (d.count / totalCount) * 100 : 0, marginPct: totalMargin > 0 ? (d.margin / totalMargin) * 100 : 0 }))
+      .sort((a, b) => b.marginPct - a.marginPct);
+  }, [positions, totalCount, totalMargin]);
+
+  // Allocation by strategy
+  const strategyAlloc = useMemo(() => {
+    const map = new Map<string, { count: number; margin: number }>();
+    for (const p of positions) {
+      const name = strategies.get(p.strategyId) || 'Unknown';
+      const existing = map.get(name) ?? { count: 0, margin: 0 };
+      existing.count++;
+      existing.margin += p.marginCashReserve ?? 0;
+      map.set(name, existing);
+    }
+    return Array.from(map.entries())
+      .map(([name, d]) => ({ name, ...d, pct: totalCount > 0 ? (d.count / totalCount) * 100 : 0, marginPct: totalMargin > 0 ? (d.margin / totalMargin) * 100 : 0 }))
+      .sort((a, b) => b.marginPct - a.marginPct);
+  }, [positions, totalCount, totalMargin, strategies]);
+
+  // Allocation by campaign
+  const campaignAlloc = useMemo(() => {
+    const map = new Map<string, { count: number; margin: number }>();
+    for (const p of positions) {
+      const name = (p.campaign || '').trim() || 'No Campaign';
+      const existing = map.get(name) ?? { count: 0, margin: 0 };
+      existing.count++;
+      existing.margin += p.marginCashReserve ?? 0;
+      map.set(name, existing);
+    }
+    return Array.from(map.entries())
+      .map(([name, d]) => ({ name, ...d, pct: totalCount > 0 ? (d.count / totalCount) * 100 : 0, marginPct: totalMargin > 0 ? (d.margin / totalMargin) * 100 : 0 }))
+      .sort((a, b) => b.marginPct - a.marginPct);
+  }, [positions, totalCount, totalMargin]);
+
+  // Concentration warnings
+  const concentrationWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    for (const s of symbolAlloc) {
+      if (s.marginPct > CONCENTRATION_THRESHOLD) warnings.push(`${s.symbol}: ${s.marginPct.toFixed(0)}% of margin`);
+    }
+    for (const s of strategyAlloc) {
+      if (s.pct > 80) warnings.push(`${s.name}: ${s.pct.toFixed(0)}% of positions`);
+    }
+    return warnings;
+  }, [symbolAlloc, strategyAlloc]);
+
+  // Positions with P/L targets
+  const positionsWithTargets = useMemo(() => {
+    return positions.map((p) => {
+      const premRcvd = p.premium * (p.contracts || 1) * 100;
+      const profitTarget = premRcvd * 0.5; // 50% of premium
+      const stopLoss = -premRcvd; // 100% of premium (loss = giving back all premium)
+
+      // Check live quote for current P/L
+      const occSym = p.instrumentType !== 'Stock' && p.strikePrice > 0 && p.expirationDate
+        ? buildOccSymbol(p.stockSymbol, new Date(p.expirationDate), p.optionType, p.strikePrice)
+        : null;
+      const quote = occSym ? liveQuotes.get(occSym) : undefined;
+      const currentPrice = quote?.mid;
+      const unrealizedPL = currentPrice != null
+        ? (p.direction === 'Sell'
+            ? (p.premium - currentPrice) * (p.contracts || 1) * 100
+            : (currentPrice - p.premium) * (p.contracts || 1) * 100)
+        : undefined;
+
+      const atProfitTarget = unrealizedPL != null && unrealizedPL >= profitTarget;
+      const atStopLoss = unrealizedPL != null && unrealizedPL <= stopLoss;
+
+      return { ...p, premRcvd, profitTarget, stopLoss, currentPrice, unrealizedPL, atProfitTarget, atStopLoss };
+    });
+  }, [positions, liveQuotes]);
 
   if (!activePlanId) {
-    return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold text-text-primary">Open Positions</h1>
-        <p className="mt-2 text-text-secondary">Select a trading plan first.</p>
-      </div>
-    );
+    return <div className="p-6"><h1 className="text-2xl font-bold text-text-primary">Positions</h1><p className="mt-2 text-text-secondary">Select a plan from the sidebar.</p></div>;
   }
-
-  if (isLoading) {
-    return <div className="p-6 text-center text-text-secondary">Loading positions...</div>;
-  }
+  if (isLoading) return <div className="p-6 text-center text-text-secondary">Loading positions...</div>;
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-text-primary">Open Positions</h1>
-        <Link to="/journal" className="text-sm text-text-accent hover:underline">Full Journal →</Link>
+        <div className="flex items-center gap-2">
+          {hasTastyTradeToken() && (
+            <button onClick={refreshQuotes} disabled={quotesLoading} className="px-3 py-1 text-xs bg-surface-tertiary border border-border rounded text-text-primary hover:bg-text-accent/10 disabled:opacity-50">
+              {quotesLoading ? 'Loading...' : '↻ Live Prices'}
+            </button>
+          )}
+          <Link to="/journal" className="text-sm text-text-accent hover:underline">Full Journal →</Link>
+        </div>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Open Trades</p>
-          <p className="text-lg font-bold text-text-primary">{positions.length}</p>
-        </div>
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Symbols</p>
-          <p className="text-lg font-bold text-text-primary">{bySymbol.length}</p>
-        </div>
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Total Margin</p>
-          <p className="text-lg font-bold text-text-primary">{formatCurrency(totalMargin)}</p>
-        </div>
-        <div className="bg-surface-tertiary rounded-lg p-3 text-center">
-          <p className="text-[10px] text-text-secondary uppercase">Premium Collected</p>
-          <p className="text-lg font-bold text-success">{formatCurrency(totalPremium)}</p>
-        </div>
+        <StatCard label="Open Trades" value={String(totalCount)} />
+        <StatCard label="Symbols" value={String(symbolAlloc.length)} />
+        <StatCard label="Total Margin" value={formatCurrency(totalMargin)} />
+        <StatCard label="Premium Collected" value={formatCurrency(totalPremium)} color="green" />
       </div>
 
-      {/* Positions by Symbol */}
-      {positions.length === 0 ? (
-        <p className="py-8 text-center text-sm text-text-secondary">No open positions</p>
-      ) : (
-        <div className="space-y-3">
-          {bySymbol.map(({ symbol, trades, totalMargin: symMargin, totalPremium: symPrem, count }) => (
-            <div key={symbol} className="bg-surface-secondary border border-border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <a href={`https://finance.yahoo.com/quote/${symbol}/`} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-text-accent hover:underline">{symbol}</a>
-                  <span className="text-xs text-text-secondary">{count} position{count > 1 ? 's' : ''}</span>
-                </div>
-                <div className="flex items-center gap-4 text-xs text-text-secondary">
-                  <span>Margin: {formatCurrency(symMargin)}</span>
-                  <span>Premium: {formatCurrency(symPrem)}</span>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-text-secondary border-b border-border">
-                      <th className="pb-1 pr-3">Type</th>
-                      <th className="pb-1 pr-3">Strategy</th>
-                      <th className="pb-1 pr-3">Strike</th>
-                      <th className="pb-1 pr-3">Exp</th>
-                      <th className="pb-1 pr-3">DTE</th>
-                      <th className="pb-1 pr-3">Premium</th>
-                      <th className="pb-1 pr-3">#</th>
-                      <th className="pb-1 pr-3">Prem Rcvd</th>
-                      <th className="pb-1">Margin</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trades.map((t) => {
-                      const now = new Date();
-                      const exp = t.expirationDate ? new Date(t.expirationDate) : null;
-                      const dte = exp ? Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-                      const isNearExpiry = dte <= 7 && dte >= 0;
-                      return (
-                        <tr key={t.id} className={`border-t border-border/50 ${isNearExpiry ? 'bg-warning/10' : ''}`}>
-                          <td className="py-1 pr-3">
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${t.instrumentType === 'Stock' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>
-                              {t.optionType} {t.direction}
-                            </span>
-                          </td>
-                          <td className="py-1 pr-3 text-text-primary">{strategies.get(t.strategyId) || '—'}</td>
-                          <td className="py-1 pr-3">${t.strikePrice}</td>
-                          <td className="py-1 pr-3">{exp ? exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
-                          <td className={`py-1 pr-3 font-medium ${isNearExpiry ? 'text-warning' : ''}`}>{dte}</td>
-                          <td className="py-1 pr-3">{t.premium.toFixed(2)}</td>
-                          <td className="py-1 pr-3">{t.contracts || 1}</td>
-                          <td className="py-1 pr-3 text-success">{formatCurrency(t.premium * (t.contracts || 1) * 100)}</td>
-                          <td className="py-1">{t.marginCashReserve ? formatCurrency(t.marginCashReserve) : '—'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+      {/* Concentration Warnings */}
+      {concentrationWarnings.length > 0 && (
+        <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg">
+          <p className="text-xs font-bold text-warning mb-1">⚠ Concentration Risk</p>
+          {concentrationWarnings.map((w, i) => (
+            <p key={i} className="text-xs text-text-primary">{w}</p>
           ))}
         </div>
       )}
 
-      <p className="text-xs text-text-secondary text-center pt-4">
-        Real-time P/L monitoring via TastyTrade API coming soon.
-      </p>
+      {/* Allocation Charts (3-column) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card title="By Symbol">
+          <div className="space-y-1.5">
+            {symbolAlloc.map((s) => (
+              <div key={s.symbol} className="flex items-center gap-2 text-xs">
+                <span className="w-12 font-medium text-text-primary">{s.symbol}</span>
+                <div className="flex-1 h-3 bg-surface-tertiary rounded overflow-hidden">
+                  <div className={`h-full rounded ${s.marginPct > CONCENTRATION_THRESHOLD ? 'bg-warning' : 'bg-text-accent/60'}`} style={{ width: `${Math.min(s.marginPct, 100)}%` }} />
+                </div>
+                <span className={`w-10 text-right ${s.marginPct > CONCENTRATION_THRESHOLD ? 'text-warning font-bold' : 'text-text-secondary'}`}>{s.marginPct.toFixed(0)}%</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="By Strategy">
+          <div className="space-y-1.5">
+            {strategyAlloc.map((s) => (
+              <div key={s.name} className="flex items-center gap-2 text-xs">
+                <span className="w-20 font-medium text-text-primary truncate">{s.name}</span>
+                <div className="flex-1 h-3 bg-surface-tertiary rounded overflow-hidden">
+                  <div className="h-full bg-purple-400/60 rounded" style={{ width: `${Math.min(s.pct, 100)}%` }} />
+                </div>
+                <span className="w-10 text-right text-text-secondary">{s.pct.toFixed(0)}%</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="By Campaign">
+          <div className="space-y-1.5">
+            {campaignAlloc.map((s) => (
+              <div key={s.name} className="flex items-center gap-2 text-xs">
+                <span className="w-20 font-medium text-text-primary truncate">{s.name}</span>
+                <div className="flex-1 h-3 bg-surface-tertiary rounded overflow-hidden">
+                  <div className="h-full bg-emerald-400/60 rounded" style={{ width: `${Math.min(s.pct, 100)}%` }} />
+                </div>
+                <span className="w-10 text-right text-text-secondary">{s.pct.toFixed(0)}%</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Positions Table with P/L Targets */}
+      {totalCount === 0 ? (
+        <p className="py-8 text-center text-sm text-text-secondary">No open positions</p>
+      ) : (
+        <Card title="All Open Positions">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-text-secondary border-b border-border">
+                  <th className="pb-1.5 pr-2">Symbol</th>
+                  <th className="pb-1.5 pr-2">Type</th>
+                  <th className="pb-1.5 pr-2">Strategy</th>
+                  <th className="pb-1.5 pr-2">Strike</th>
+                  <th className="pb-1.5 pr-2">Exp</th>
+                  <th className="pb-1.5 pr-2">DTE</th>
+                  <th className="pb-1.5 pr-2">Premium</th>
+                  <th className="pb-1.5 pr-2">Prem Rcvd</th>
+                  <th className="pb-1.5 pr-2">Target (50%)</th>
+                  <th className="pb-1.5 pr-2">Stop (100%)</th>
+                  {hasTastyTradeToken() && <th className="pb-1.5 pr-2">Current</th>}
+                  {hasTastyTradeToken() && <th className="pb-1.5">Unrealized</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {positionsWithTargets.map((t) => {
+                  const now = new Date();
+                  const exp = t.expirationDate ? new Date(t.expirationDate) : null;
+                  const dte = exp ? Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                  const isNearExpiry = dte <= 7 && dte >= 0;
+
+                  return (
+                    <tr key={t.id} className={`border-t border-border/50 ${t.atStopLoss ? 'bg-error/10' : t.atProfitTarget ? 'bg-success/10' : isNearExpiry ? 'bg-warning/10' : ''}`}>
+                      <td className="py-1.5 pr-2 font-medium text-text-accent">
+                        <a href={`https://finance.yahoo.com/quote/${t.stockSymbol}/`} target="_blank" rel="noopener noreferrer" className="hover:underline">{t.stockSymbol}</a>
+                      </td>
+                      <td className="py-1.5 pr-2">{t.optionType} {t.direction}</td>
+                      <td className="py-1.5 pr-2 text-text-secondary">{strategies.get(t.strategyId) || '—'}</td>
+                      <td className="py-1.5 pr-2">${t.strikePrice}</td>
+                      <td className="py-1.5 pr-2">{exp ? exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
+                      <td className={`py-1.5 pr-2 ${isNearExpiry ? 'text-warning font-bold' : ''}`}>{dte}</td>
+                      <td className="py-1.5 pr-2">{t.premium.toFixed(2)}</td>
+                      <td className="py-1.5 pr-2 text-success">{formatCurrency(t.premRcvd)}</td>
+                      <td className="py-1.5 pr-2 text-success">{formatCurrency(t.profitTarget)}</td>
+                      <td className="py-1.5 pr-2 text-error">{formatProfitLoss(t.stopLoss)}</td>
+                      {hasTastyTradeToken() && (
+                        <td className="py-1.5 pr-2">{t.currentPrice != null ? t.currentPrice.toFixed(2) : '—'}</td>
+                      )}
+                      {hasTastyTradeToken() && (
+                        <td className={`py-1.5 font-medium ${t.unrealizedPL != null ? (t.unrealizedPL >= 0 ? 'text-success' : 'text-error') : ''}`}>
+                          {t.unrealizedPL != null ? formatProfitLoss(t.unrealizedPL) : '—'}
+                          {t.atProfitTarget && <span className="ml-1 text-[9px] bg-success/20 text-success px-1 rounded">TARGET</span>}
+                          {t.atStopLoss && <span className="ml-1 text-[9px] bg-error/20 text-error px-1 rounded">STOP</span>}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {!hasTastyTradeToken() && (
+        <p className="text-xs text-text-secondary text-center pt-2">
+          Add VITE_TASTYTRADE_TOKEN to .env to enable live option pricing via TastyTrade API.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, color }: { label: string; value: string; color?: 'green' | 'red' }) {
+  const c = color === 'green' ? 'text-success' : color === 'red' ? 'text-error' : 'text-text-primary';
+  return (
+    <div className="bg-surface-tertiary rounded-lg p-3 text-center">
+      <p className="text-[10px] text-text-secondary uppercase">{label}</p>
+      <p className={`text-lg font-bold ${c}`}>{value}</p>
     </div>
   );
 }
