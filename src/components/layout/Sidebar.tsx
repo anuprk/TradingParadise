@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -10,15 +10,19 @@ import {
   ChevronRight,
   Target,
   BarChart3,
+  BookOpen,
 } from 'lucide-react';
+import { useAppStore } from '../../stores/appStore';
+import { usePlanStore } from '../../stores/planStore';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/journal', label: 'Journal', icon: BookOpen },
   { to: '/positions', label: 'Positions', icon: Target },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/plans', label: 'Plans', icon: FileText },
   { to: '/portfolios', label: 'Portfolios', icon: Briefcase },
-  { to: '/daily-notes', label: 'Daily Notes', icon: StickyNote },
+  { to: '/daily-notes', label: 'Notes', icon: StickyNote },
   { to: '/reminders', label: 'Reminders', icon: Bell },
 ];
 
@@ -39,6 +43,10 @@ function mobileLinkClass({ isActive }: { isActive: boolean }) {
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(true);
+  const { activePlanId, setActivePlanId } = useAppStore();
+  const { plans, loadPlans } = usePlanStore();
+
+  useEffect(() => { loadPlans(); }, [loadPlans]);
 
   return (
     <>
@@ -48,6 +56,30 @@ export default function Sidebar() {
           collapsed ? 'w-14' : 'w-56'
         }`}
       >
+        {/* Plan Selector */}
+        {!collapsed && plans.length > 0 && (
+          <div className="p-2 border-b border-border">
+            <label className="text-[10px] text-text-secondary uppercase font-medium px-1">Plan</label>
+            <select
+              value={activePlanId ?? ''}
+              onChange={(e) => setActivePlanId(e.target.value || null)}
+              className="w-full mt-1 px-2 py-1.5 text-xs rounded border border-border bg-input-bg text-text-primary truncate"
+            >
+              <option value="">Select Plan</option>
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {collapsed && activePlanId && (
+          <div className="p-1 border-b border-border text-center" title={plans.find((p) => p.id === activePlanId)?.name}>
+            <span className="text-[9px] text-text-accent font-bold">
+              {(plans.find((p) => p.id === activePlanId)?.name ?? '').slice(0, 3).toUpperCase()}
+            </span>
+          </div>
+        )}
+
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto" aria-label="Main navigation">
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
@@ -78,7 +110,7 @@ export default function Sidebar() {
         aria-label="Mobile navigation"
       >
         <div className="flex justify-around items-center h-14">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {navItems.slice(0, 5).map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} end={to === '/'} className={mobileLinkClass}>
               <Icon className="h-5 w-5" />
               <span>{label}</span>
