@@ -108,7 +108,7 @@ export default function TradeJournal() {
       } else if (groupBy === 'expirationDate') {
         key = entry.expirationDate ? new Date(entry.expirationDate).toISOString().split('T')[0] : 'No Expiration';
       } else if (groupBy === 'campaign') {
-        key = entry.campaign || 'No Campaign';
+        key = (entry.campaign || '').trim() || 'No Campaign';
       } else {
         const strat = strategies.find((s) => s.id === entry.strategyId);
         key = strat?.name || entry.strategyId || 'Unassigned';
@@ -138,6 +138,13 @@ export default function TradeJournal() {
     });
     return () => { cancelled = true; };
   }, [activePlanId, entries]); // Re-fetch when entries change (new trade added)
+
+  // Unique campaigns for the campaign datalist
+  const uniqueCampaigns = useMemo(() => {
+    const campaigns = new Set<string>();
+    entries.forEach((e) => { if (e.campaign?.trim()) campaigns.add(e.campaign.trim()); });
+    return Array.from(campaigns).sort();
+  }, [entries]);
 
   // Banner stats — always based on ALL open trades for this plan (independent of table filters)
   const [allOpenTrades, setAllOpenTrades] = useState<TradeJournalEntry[]>([]);
@@ -211,7 +218,17 @@ export default function TradeJournal() {
         case 'marginCashReserve': changes.marginCashReserve = value ? Number(value) : undefined; break;
         case 'exitPrice': changes.exitPrice = (value !== '' && value.trim() !== '') ? Number(value) : undefined; break;
         case 'closeDate': changes.closeDate = value ? new Date(value + 'T12:00:00') : undefined; break;
-        case 'tradeStatus': changes.tradeStatus = value as TradeJournalEntry['tradeStatus']; break;
+        case 'tradeStatus': {
+          const newStatus = value as TradeJournalEntry['tradeStatus'];
+          if ((newStatus === 'Closed' || newStatus === 'Expired' || newStatus === 'Assigned') && !entry.closeDate) {
+            // Auto-set close date to today when closing without a date
+            changes.closeDate = new Date();
+            changes.tradeStatus = newStatus;
+          } else {
+            changes.tradeStatus = newStatus;
+          }
+          break;
+        }
         case 'strategyId': changes.strategyId = value; break;
         case 'currentStockPrice': changes.currentStockPrice = value ? Number(value) : undefined; break;
         case 'notes': changes.notes = value; break;
@@ -501,7 +518,7 @@ export default function TradeJournal() {
                   </td>
                   <td className="px-2 py-1"><span className={`text-xs px-1.5 py-0.5 rounded ${entry.instrumentType === 'Stock' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>{entry.instrumentType === 'Stock' ? 'STK' : 'OPT'}</span></td>
                   <td className="px-2 py-1"><div className="flex items-center gap-1"><input className={ic + ' w-14 font-medium'} defaultValue={entry.stockSymbol} onBlur={(e) => saveField(entry.id, 'stockSymbol', e.target.value, entry)} /><a href={`https://finance.yahoo.com/quote/${entry.stockSymbol}/`} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 text-text-accent hover:underline text-[10px]" title="Yahoo Finance">↗</a></div></td>
-                  <td className="px-2 py-1"><input className={ic + ' w-20'} defaultValue={entry.campaign || ''} onBlur={(e) => saveField(entry.id, 'campaign', e.target.value, entry)} placeholder="" /></td>
+                  <td className="px-2 py-1"><input className={ic + ' w-20'} defaultValue={entry.campaign || ''} onBlur={(e) => saveField(entry.id, 'campaign', e.target.value, entry)} list="campaign-options" placeholder="Campaign" /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.openDate)} onBlur={(e) => saveField(entry.id, 'openDate', e.target.value, entry)} /></td>
                   <td className="px-2 py-1"><input type="date" className={ic + ' w-28'} defaultValue={toDateInput(entry.expirationDate)} onBlur={(e) => saveField(entry.id, 'expirationDate', e.target.value, entry)} /></td>
                   <td className="px-2 py-1" style={{ minWidth: 100 }}><select className={sc} defaultValue={entry.strategyId} onChange={(e) => saveField(entry.id, 'strategyId', e.target.value, entry)}><option value="">—</option>{strategies.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></td>
@@ -583,6 +600,11 @@ export default function TradeJournal() {
           </table>
         </div>
       )}
+
+      {/* Campaign datalist for autocomplete */}
+      <datalist id="campaign-options">
+        {uniqueCampaigns.map((c) => <option key={c} value={c} />)}
+      </datalist>
 
       {/* Pagination */}
       {totalPages > 1 && (
