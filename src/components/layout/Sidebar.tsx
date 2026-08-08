@@ -8,10 +8,14 @@ import {
   StickyNote,
   ChevronLeft,
   ChevronRight,
+  Target,
+  BarChart3,
 } from 'lucide-react';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/positions', label: 'Positions', icon: Target },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/plans', label: 'Plans', icon: FileText },
   { to: '/portfolios', label: 'Portfolios', icon: Briefcase },
   { to: '/daily-notes', label: 'Daily Notes', icon: StickyNote },

@@ -42,6 +42,8 @@ const PortfolioPage = lazyWithRetry(() => import('./pages/PortfolioPage'));
 const PortfolioDashboardPage = lazyWithRetry(() => import('./pages/PortfolioDashboardPage'));
 const RemindersPage = lazyWithRetry(() => import('./pages/RemindersPage'));
 const DailyNotesPage = lazyWithRetry(() => import('./pages/DailyNotesPage'));
+const PositionsPage = lazyWithRetry(() => import('./pages/PositionsPage'));
+const AnalyticsPage = lazyWithRetry(() => import('./pages/AnalyticsPage'));
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage'));
 const SignupPage = lazyWithRetry(() => import('./pages/SignupPage'));
 const ResetPasswordPage = lazyWithRetry(() => import('./pages/ResetPasswordPage'));
@@ -176,6 +178,22 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LoadingFallback />}>
             <DailyNotesPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'positions',
+        element: (
+          <Suspense fallback={<LoadingFallback />}>
+            <PositionsPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'analytics',
+        element: (
+          <Suspense fallback={<LoadingFallback />}>
+            <AnalyticsPage />
           </Suspense>
         ),
       },
