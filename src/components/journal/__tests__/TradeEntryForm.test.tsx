@@ -163,7 +163,7 @@ describe('TradeEntryForm', () => {
     const user = userEvent.setup();
     render(<TradeEntryForm {...defaultProps} />);
     await user.click(screen.getByRole('button', { name: 'Save Trade' }));
-    expect(screen.getByText('Stock symbol is required')).toBeInTheDocument();
+    expect(screen.getByText('Symbol is required')).toBeInTheDocument();
     expect(screen.getByText('Open date is required')).toBeInTheDocument();
     expect(screen.getByText('Strategy is required')).toBeInTheDocument();
     expect(screen.getByText('Portfolio is required')).toBeInTheDocument();

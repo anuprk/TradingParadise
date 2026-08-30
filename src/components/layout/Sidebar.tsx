@@ -59,8 +59,10 @@ export default function Sidebar() {
         {/* Plan Selector */}
         {!collapsed && plans.length > 0 && (
           <div className="p-2 border-b border-border">
-            <label className="text-[10px] text-text-secondary uppercase font-medium px-1">Plan</label>
+            <label htmlFor="sidebar-plan-select" className="text-[10px] text-text-secondary uppercase font-medium px-1">Plan</label>
             <select
+              id="sidebar-plan-select"
+              aria-label="Select trading plan"
               value={activePlanId ?? ''}
               onChange={(e) => setActivePlanId(e.target.value || null)}
               className="w-full mt-1 px-2 py-1.5 text-xs rounded border border-border bg-input-bg text-text-primary truncate"

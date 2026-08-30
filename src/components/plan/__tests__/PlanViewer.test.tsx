@@ -13,11 +13,11 @@ vi.mock('../../../db/planRepository', () => ({
   getPlan: vi.fn().mockResolvedValue(undefined),
   updatePlan: vi.fn().mockResolvedValue(undefined),
   deletePlan: vi.fn().mockResolvedValue(undefined),
-  listPlans: vi.fn().mockResolvedValue([]),
+  listPlans: vi.fn().mockResolvedValue({ entries: [], total: 0 }),
   getLastAccessed: vi.fn().mockResolvedValue(undefined),
 }));
 
-const mockFilterJournalEntries = vi.fn().mockResolvedValue([]);
+const mockFilterJournalEntries = vi.fn().mockResolvedValue({ entries: [], total: 0 });
 vi.mock('../../../db/journalRepository', () => ({
   filterJournalEntries: (...args: unknown[]) => mockFilterJournalEntries(...args),
 }));
@@ -123,7 +123,7 @@ beforeEach(() => {
     isLoading: false,
     plans: [],
   });
-  mockFilterJournalEntries.mockReset().mockResolvedValue([]);
+  mockFilterJournalEntries.mockReset().mockResolvedValue({ entries: [], total: 0 });
 });
 
 /**
@@ -176,9 +176,12 @@ describe('PlanViewer', () => {
     }
   });
 
-  it('displays goals section by default with numbered list', () => {
+  it('displays goals section with numbered list', async () => {
+    const user = userEvent.setup();
     setViewerPlan(buildPlan());
     renderViewer();
+    // Compliance Monitor is the default section; navigate to Metadata & Goals.
+    await user.click(screen.getByText('Metadata & Goals'));
     expect(screen.getByText('Goals')).toBeInTheDocument();
     expect(screen.getByText('Generate monthly income')).toBeInTheDocument();
     expect(screen.getByText('Target: $5,000/month')).toBeInTheDocument();
@@ -341,7 +344,7 @@ describe('PlanViewer', () => {
 
   it('displays "No trades recorded" when strategy has no journal entries', async () => {
     const user = userEvent.setup();
-    mockFilterJournalEntries.mockResolvedValue([]);
+    mockFilterJournalEntries.mockResolvedValue({ entries: [], total: 0 });
     setViewerPlan(buildPlan());
     renderViewer();
 
@@ -408,7 +411,7 @@ describe('PlanViewer', () => {
         updatedAt: now,
       },
     ];
-    mockFilterJournalEntries.mockResolvedValue(mockEntries);
+    mockFilterJournalEntries.mockResolvedValue({ entries: mockEntries, total: mockEntries.length });
     setViewerPlan(buildPlan());
     renderViewer();
 

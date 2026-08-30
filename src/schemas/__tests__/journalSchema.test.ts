@@ -64,9 +64,9 @@ describe('tradeJournalEntrySchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects entry with missing portfolioId', () => {
-    const result = tradeJournalEntrySchema.safeParse(makeValidEntry({ portfolioId: '' }));
-    expect(result.success).toBe(false);
+  it('accepts entry without portfolioId (portfolio linkage is optional)', () => {
+    const result = tradeJournalEntrySchema.safeParse(makeValidEntry({ portfolioId: undefined }));
+    expect(result.success).toBe(true);
   });
 
   it('rejects entry with missing strategyId', () => {

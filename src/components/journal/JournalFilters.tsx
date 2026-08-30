@@ -97,8 +97,9 @@ export default function JournalFilters({
       <div className="flex flex-wrap gap-3 items-end">
         {/* Symbol filter */}
         <div>
-          <label className="block text-xs font-medium text-text-secondary mb-1">Symbol</label>
+          <label htmlFor="journal-filter-symbol" className="block text-xs font-medium text-text-secondary mb-1">Symbol</label>
           <select
+            id="journal-filter-symbol"
             className="block rounded-md border border-border bg-input-bg text-text-primary px-2 py-1.5 text-sm"
             value={filters.stockSymbol ?? ''}
             onChange={(e) => update({ stockSymbol: e.target.value || undefined })}
@@ -165,8 +166,9 @@ export default function JournalFilters({
 
         {/* Win/Loss filter */}
         <div>
-          <label className="block text-xs font-medium text-text-secondary mb-1">Result</label>
+          <label htmlFor="journal-filter-result" className="block text-xs font-medium text-text-secondary mb-1">Result</label>
           <select
+            id="journal-filter-result"
             className="block rounded-md border border-border bg-input-bg text-text-primary px-2 py-1.5 text-sm"
             value={filters.winLoss === null ? '' : (filters.winLoss ?? '')}
             onChange={(e) => {

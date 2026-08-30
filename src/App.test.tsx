@@ -1,11 +1,14 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import AppShell from './components/layout/AppShell';
+import type { TradingPlan } from './types/tradingPlan';
 
 // Mock all DB modules to prevent Supabase calls in tests
+const mockListPlans = vi.fn().mockResolvedValue([]);
 vi.mock('./db/planRepository', () => ({
-  listPlans: vi.fn().mockResolvedValue([]),
+  listPlans: (...args: unknown[]) => mockListPlans(...args),
   getPlan: vi.fn().mockResolvedValue(null),
   createPlan: vi.fn().mockResolvedValue('test-id'),
   updatePlan: vi.fn().mockResolvedValue(undefined),
@@ -55,17 +58,25 @@ describe('App Shell', () => {
     expect(screen.getByText('TradingParadise')).toBeInTheDocument();
   });
 
-  it('renders the plan selector', () => {
+  it('renders the plan selector when a plan exists and the sidebar is expanded', async () => {
+    const user = userEvent.setup();
+    // The plan selector only renders when plans exist and the sidebar is expanded.
+    // Have the store's loadPlans() populate a plan on mount.
+    mockListPlans.mockResolvedValueOnce([{ id: 'plan-1', name: 'My Plan' } as TradingPlan]);
     renderWithRouter();
-    expect(screen.getByLabelText('Select trading plan')).toBeInTheDocument();
+    // Let loadPlans() settle so the store has the plan.
+    await screen.findByRole('button', { name: 'Expand sidebar' });
+    await user.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    expect(await screen.findByLabelText('Select trading plan')).toBeInTheDocument();
   });
 
   it('renders navigation links', () => {
     renderWithRouter();
+    // The mobile bottom-nav always renders labels for its items; assert those.
     expect(screen.getAllByText('Journal').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Portfolios').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Reminders').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Settings').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Positions').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Analytics').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0);
   });
 
   it('renders the page content', () => {

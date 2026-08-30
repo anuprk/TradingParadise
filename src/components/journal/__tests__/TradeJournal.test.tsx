@@ -134,8 +134,8 @@ describe('TradeJournal', () => {
   it('renders the heading and Add Trade button', () => {
     renderJournal();
     expect(screen.getByText('Trade Journal')).toBeInTheDocument();
-    const addLink = screen.getByRole('link', { name: 'Add Trade' });
-    expect(addLink).toHaveAttribute('href', '/journal/new');
+    // The redesigned inline-grid journal uses an "+ Add Row" button (not a link).
+    expect(screen.getByRole('button', { name: /Add Row/ })).toBeInTheDocument();
   });
 
   it('renders all entries in the desktop table', () => {
@@ -148,9 +148,10 @@ describe('TradeJournal', () => {
 
   it('displays key columns for each entry', () => {
     renderJournal();
-    expect(screen.getAllByText('AAPL').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('TSLA').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('SPY').length).toBeGreaterThanOrEqual(1);
+    // Symbols render as editable inputs in the inline-grid design.
+    expect(screen.getAllByDisplayValue('AAPL').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByDisplayValue('TSLA').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByDisplayValue('SPY').length).toBeGreaterThanOrEqual(1);
   });
 
   it('displays status badges', () => {
@@ -165,13 +166,11 @@ describe('TradeJournal', () => {
     expect(screen.getAllByText('Loss').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders Edit and Delete action buttons for each entry', () => {
+  it('renders per-row action buttons for each entry', () => {
     renderJournal();
-    const editLinks = screen.getAllByText('Edit');
-    const deleteButtons = screen.getAllByText('Delete');
-    // 3 entries × 2 layouts (desktop + mobile) = 6 each
-    expect(editLinks.length).toBeGreaterThanOrEqual(3);
-    expect(deleteButtons.length).toBeGreaterThanOrEqual(3);
+    // Inline-grid rows expose icon buttons by title (Delete / Duplicate / Insert below).
+    expect(screen.getAllByTitle('Delete').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByTitle('Duplicate').length).toBeGreaterThanOrEqual(3);
   });
 
   it('calls setSort when a column header is clicked', async () => {
@@ -186,43 +185,39 @@ describe('TradeJournal', () => {
   it('toggles sort direction when clicking the currently sorted column', async () => {
     const user = userEvent.setup();
     renderJournal();
-    const table = screen.getByRole('table');
-    const openDateHeader = within(table).getByText(/Open Date/);
-    await user.click(openDateHeader);
+    // "Open" is the open-date column header; it is the active sort column (openDate desc).
+    const openHeader = screen.getByRole('columnheader', { name: /^Open/ });
+    await user.click(openHeader);
     // Should toggle to asc since current is desc
     expect(mockSetSort).toHaveBeenCalledWith('openDate', 'asc');
   });
 
   it('shows sort indicator on the active sort column', () => {
     renderJournal();
-    const table = screen.getByRole('table');
-    const openDateHeader = within(table).getByText(/Open Date/);
-    expect(openDateHeader.textContent).toContain('▼');
+    const openHeader = screen.getByRole('columnheader', { name: /^Open/ });
+    expect(openHeader.textContent).toContain('▼');
   });
 
-  it('renders the journal summary section', () => {
+  it('renders the open-positions summary banner', () => {
     renderJournal();
-    expect(screen.getByText('Total Trades')).toBeInTheDocument();
-    expect(screen.getByText('Win Rate')).toBeInTheDocument();
-    expect(screen.getByText('Total P/L')).toBeInTheDocument();
-    expect(screen.getByText('Avg P/L')).toBeInTheDocument();
-    expect(screen.getByText('Total Fees')).toBeInTheDocument();
+    expect(screen.getByText('Open Positions')).toBeInTheDocument();
+    expect(screen.getByText('Total Margin Req')).toBeInTheDocument();
+    expect(screen.getByText('This Month P/L')).toBeInTheDocument();
   });
 
   it('renders the journal filters section', () => {
     renderJournal();
-    expect(screen.getByLabelText('Strategy')).toBeInTheDocument();
-    expect(screen.getByLabelText('Account')).toBeInTheDocument();
-    expect(screen.getByLabelText('Symbol')).toBeInTheDocument();
-    expect(screen.getByLabelText('Option Type')).toBeInTheDocument();
-    expect(screen.getByLabelText('Status')).toBeInTheDocument();
-    expect(screen.getByText('Clear Filters')).toBeInTheDocument();
+    // Redesigned filter bar: Result control, a Status row, and a Reset button.
+    // ("Symbol" text is intentionally not asserted here — it also appears as a column header.)
+    expect(screen.getByText('Result')).toBeInTheDocument();
+    expect(screen.getByText('Status:')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument();
   });
   it('opens confirmation dialog when Delete is clicked and deletes on confirm', async () => {
     const user = userEvent.setup();
     renderJournal();
-    // Click the first desktop Delete button
-    const deleteButtons = screen.getAllByText('Delete');
+    // Click the first row's Delete icon button (identified by title).
+    const deleteButtons = screen.getAllByTitle('Delete');
     await user.click(deleteButtons[0]);
 
     // Confirm dialog should appear
@@ -240,7 +235,7 @@ describe('TradeJournal', () => {
   it('closes confirmation dialog when Cancel is clicked without deleting', async () => {
     const user = userEvent.setup();
     renderJournal();
-    const deleteButtons = screen.getAllByText('Delete');
+    const deleteButtons = screen.getAllByTitle('Delete');
     await user.click(deleteButtons[0]);
 
     const dialog = screen.getByRole('dialog');

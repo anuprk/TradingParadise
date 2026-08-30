@@ -35,6 +35,6 @@ describe('SectionNav', () => {
   });
 
   it('has correct number of sections', () => {
-    expect(PLAN_SECTIONS).toHaveLength(10);
+    expect(PLAN_SECTIONS).toHaveLength(11);
   });
 });

@@ -64,12 +64,11 @@ describe('TransactionsTab', () => {
 
     const headers = screen.getAllByRole('columnheader');
     const headerTexts = headers.map((h) => h.textContent?.replace(/[▲▼]/, '').trim());
+    // Current transactions grid columns (option-specific columns were removed in the redesign).
     expect(headerTexts).toContain('Date');
     expect(headerTexts).toContain('Symbol');
-    expect(headerTexts).toContain('Option Type');
     expect(headerTexts).toContain('Direction');
-    expect(headerTexts).toContain('Strike');
-    expect(headerTexts).toContain('Premium');
+    expect(headerTexts).toContain('Price');
     expect(headerTexts).toContain('Fees');
     expect(headerTexts).toContain('P/L');
   });
@@ -94,27 +93,14 @@ describe('TransactionsTab', () => {
 
     expect(screen.getByText('03/15/2024')).toBeInTheDocument();
     expect(screen.getByText('MSFT')).toBeInTheDocument();
-    expect(screen.getByText('Call')).toBeInTheDocument();
-    expect(screen.getByText('$400.00')).toBeInTheDocument();
     expect(screen.getByText('$5.25')).toBeInTheDocument();
     expect(screen.getByText('$0.65')).toBeInTheDocument();
     expect(screen.getByText('$524.35')).toBeInTheDocument();
 
-    // "Sell" appears in both the dropdown and the table cell, so check within the table
+    // "Sell" appears in both the filter dropdown and the table cell, so check within the row.
     const rows = screen.getAllByRole('row');
     const dataRow = rows[rows.length - 1]; // last row is the data row
     expect(dataRow).toHaveTextContent('Sell');
-    expect(dataRow).toHaveTextContent('Call');
-  });
-
-  it('shows dash for missing option type and strike price', () => {
-    const transactions = [makeTransaction({ optionType: undefined, strikePrice: undefined })];
-    render(
-      <TransactionsTab {...defaultProps} transactions={transactions} totalCount={1} />,
-    );
-
-    const dashes = screen.getAllByText('—');
-    expect(dashes.length).toBe(2); // optionType and strikePrice
   });
 
   it('color-codes positive P/L in green', () => {

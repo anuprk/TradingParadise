@@ -13,11 +13,12 @@ describe('JournalFilters', () => {
       />,
     );
     expect(screen.getByLabelText('Symbol')).toBeInTheDocument();
-    expect(screen.getByText('All')).toBeInTheDocument();
-    expect(screen.getByText('Today')).toBeInTheDocument();
-    expect(screen.getByText('Week')).toBeInTheDocument();
-    expect(screen.getByText('Month')).toBeInTheDocument();
-    expect(screen.getByText('Custom')).toBeInTheDocument();
+    // Date presets are buttons (query by role to avoid clashing with select options like "All").
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Today' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Week' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Month' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Custom' })).toBeInTheDocument();
   });
 
   it('renders status checkboxes', () => {
