@@ -22,7 +22,7 @@ type SortDir = 'asc' | 'desc';
 export default function PositionsList({ entries }: PositionsListProps) {
   const [filterSymbol, setFilterSymbol] = useState('');
   const [filterOptionType, setFilterOptionType] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('expirationDate');
+  const [sortKey, setSortKey] = useState<SortKey>('stockSymbol');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const openPositions = useMemo(

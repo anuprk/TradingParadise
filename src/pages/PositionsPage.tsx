@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../stores/appStore';
 import { useTradingPlan } from '../hooks/useTradingPlan';
+import { useTableSort } from '../hooks/useTableSort';
 import { filterJournalEntries } from '../db/journalRepository';
 import { formatCurrency, formatProfitLoss } from '../utils/formatters';
 import { buildOccSymbol, fetchOptionQuotes, hasTastyTradeToken, getTastyTradeToken } from '../utils/tastytrade';
@@ -135,9 +136,37 @@ export default function PositionsPage() {
       const atProfitTarget = unrealizedPL != null && unrealizedPL >= profitTarget;
       const atStopLoss = unrealizedPL != null && unrealizedPL <= stopLoss;
 
-      return { ...p, premRcvd, profitTarget, stopLoss, currentPrice, unrealizedPL, atProfitTarget, atStopLoss };
+      const exp = p.expirationDate ? new Date(p.expirationDate) : null;
+      const dte = exp ? Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
+
+      return { ...p, premRcvd, profitTarget, stopLoss, currentPrice, unrealizedPL, atProfitTarget, atStopLoss, dte };
     });
   }, [positions, liveQuotes]);
+
+  // Sortable "All Open Positions" table — default to Symbol ascending.
+  type PositionRow = typeof positionsWithTargets[number];
+  type PositionSortKey =
+    | 'stockSymbol' | 'type' | 'strategy' | 'strikePrice' | 'expirationDate'
+    | 'dte' | 'premium' | 'premRcvd' | 'profitTarget' | 'stopLoss' | 'currentPrice' | 'unrealizedPL';
+  const positionsSort = useTableSort<PositionRow, PositionSortKey>(
+    positionsWithTargets,
+    (row, key) => {
+      switch (key) {
+        case 'type': return `${row.optionType} ${row.direction}`;
+        case 'strategy': return strategies.get(row.strategyId) || '';
+        case 'expirationDate': return row.expirationDate ? new Date(row.expirationDate).getTime() : null;
+        default: return row[key] as string | number | null | undefined;
+      }
+    },
+    {
+      initialKey: 'stockSymbol',
+      initialDir: 'asc',
+      defaultDirForKey: {
+        strikePrice: 'desc', expirationDate: 'desc', dte: 'desc', premium: 'desc',
+        premRcvd: 'desc', profitTarget: 'desc', stopLoss: 'desc', currentPrice: 'desc', unrealizedPL: 'desc',
+      },
+    },
+  );
 
   if (!activePlanId) {
     return <div className="p-6"><h1 className="text-2xl font-bold text-text-primary">Positions</h1><p className="mt-2 text-text-secondary">Select a plan from the sidebar.</p></div>;
@@ -229,26 +258,25 @@ export default function PositionsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-left text-text-secondary border-b border-border">
-                  <th className="pb-1.5 pr-2">Symbol</th>
-                  <th className="pb-1.5 pr-2">Type</th>
-                  <th className="pb-1.5 pr-2">Strategy</th>
-                  <th className="pb-1.5 pr-2">Strike</th>
-                  <th className="pb-1.5 pr-2">Exp</th>
-                  <th className="pb-1.5 pr-2">DTE</th>
-                  <th className="pb-1.5 pr-2">Premium</th>
-                  <th className="pb-1.5 pr-2">Prem Rcvd</th>
-                  <th className="pb-1.5 pr-2">Target (50%)</th>
-                  <th className="pb-1.5 pr-2">Stop (100%)</th>
-                  {hasTastyTradeToken() && <th className="pb-1.5 pr-2">Current</th>}
-                  {hasTastyTradeToken() && <th className="pb-1.5">Unrealized</th>}
+                <tr className="text-left text-text-secondary border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+                  <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('stockSymbol')}>Symbol{positionsSort.sortIndicator('stockSymbol')}</th>
+                  <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('type')}>Type{positionsSort.sortIndicator('type')}</th>
+                  <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('strategy')}>Strategy{positionsSort.sortIndicator('strategy')}</th>
+                  <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('strikePrice')}>Strike{positionsSort.sortIndicator('strikePrice')}</th>
+                  <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('expirationDate')}>Exp{positionsSort.sortIndicator('expirationDate')}</th>
+                  <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('dte')}>DTE{positionsSort.sortIndicator('dte')}</th>
+                  <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('premium')}>Premium{positionsSort.sortIndicator('premium')}</th>
+                  <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('premRcvd')}>Prem Rcvd{positionsSort.sortIndicator('premRcvd')}</th>
+                  <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('profitTarget')}>Target (50%){positionsSort.sortIndicator('profitTarget')}</th>
+                  <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('stopLoss')}>Stop (100%){positionsSort.sortIndicator('stopLoss')}</th>
+                  {hasTastyTradeToken() && <th className="pb-1.5 pr-2" onClick={() => positionsSort.handleSort('currentPrice')}>Current{positionsSort.sortIndicator('currentPrice')}</th>}
+                  {hasTastyTradeToken() && <th className="pb-1.5" onClick={() => positionsSort.handleSort('unrealizedPL')}>Unrealized{positionsSort.sortIndicator('unrealizedPL')}</th>}
                 </tr>
               </thead>
               <tbody>
-                {positionsWithTargets.map((t) => {
-                  const now = new Date();
+                {positionsSort.sorted.map((t) => {
                   const exp = t.expirationDate ? new Date(t.expirationDate) : null;
-                  const dte = exp ? Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                  const dte = t.dte;
                   const isNearExpiry = dte <= 7 && dte >= 0;
 
                   return (

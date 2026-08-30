@@ -14,6 +14,7 @@ import DailyManagementSection from './DailyManagementSection';
 import MarketRegimeSection from './MarketRegimeSection';
 import AccountSizingSection from './AccountSizingSection';
 import { useTradeMonitor } from '../../hooks/useTradeMonitor';
+import { useTableSort } from '../../hooks/useTableSort';
 import { formatCurrency, formatPercentage, formatProfitLoss } from '../../utils/formatters';
 import { filterJournalEntries } from '../../db/journalRepository';
 import type {
@@ -202,6 +203,11 @@ function GoalsView({ plan }: { plan: TradingPlan }) {
 /* ── Greeks Targets ───────────────────────────────────────────── */
 
 function GreeksView({ plan }: { plan: TradingPlan }) {
+  const s = useTableSort<TradingPlan['greeksTargets'][number], 'metricName' | 'targetDescription' | 'minValue'>(
+    plan.greeksTargets,
+    (row, key) => row[key],
+    { initialKey: 'metricName', initialDir: 'asc' },
+  );
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-text-primary">Portfolio Greeks Targets</h2>
@@ -211,14 +217,14 @@ function GreeksView({ plan }: { plan: TradingPlan }) {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-2 pr-4 font-medium text-text-primary">Metric</th>
-                <th className="text-left py-2 pr-4 font-medium text-text-primary">Description</th>
-                <th className="text-left py-2 font-medium text-text-primary">Range</th>
+              <tr className="border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-accent">
+                <th className="text-left py-2 pr-4 font-medium text-text-primary" onClick={() => s.handleSort('metricName')}>Metric{s.sortIndicator('metricName')}</th>
+                <th className="text-left py-2 pr-4 font-medium text-text-primary" onClick={() => s.handleSort('targetDescription')}>Description{s.sortIndicator('targetDescription')}</th>
+                <th className="text-left py-2 font-medium text-text-primary" onClick={() => s.handleSort('minValue')}>Range{s.sortIndicator('minValue')}</th>
               </tr>
             </thead>
             <tbody>
-              {plan.greeksTargets.map((t) => (
+              {s.sorted.map((t) => (
                 <tr key={t.id} className="border-b border-border">
                   <td className="py-2 pr-4 font-medium text-text-primary">{t.metricName}</td>
                   <td className="py-2 pr-4 text-text-secondary">{t.targetDescription}</td>
@@ -242,6 +248,17 @@ function GreeksView({ plan }: { plan: TradingPlan }) {
 function RiskManagementView({ plan }: { plan: TradingPlan }) {
   const { bpThresholds, positionLimits, maxLossPerTrade, maxLossPerPortfolio } = plan.riskManagement;
 
+  const bpSort = useTableSort<typeof bpThresholds[number], 'percentage' | 'actionDescription'>(
+    bpThresholds,
+    (row, key) => row[key],
+    { initialKey: 'percentage', initialDir: 'asc', defaultDirForKey: { percentage: 'asc' } },
+  );
+  const limitSort = useTableSort<typeof positionLimits[number], 'strategyName' | 'maxPositions' | 'maxPerUnderlying'>(
+    positionLimits,
+    (row, key) => row[key],
+    { initialKey: 'strategyName', initialDir: 'asc', defaultDirForKey: { maxPositions: 'desc', maxPerUnderlying: 'desc' } },
+  );
+
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold text-text-primary">Risk Management</h2>
@@ -255,13 +272,13 @@ function RiskManagementView({ plan }: { plan: TradingPlan }) {
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 pr-4 font-medium text-text-primary">BP Usage</th>
-                  <th className="text-left py-2 font-medium text-text-primary">Action</th>
+                <tr className="border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-accent">
+                  <th className="text-left py-2 pr-4 font-medium text-text-primary" onClick={() => bpSort.handleSort('percentage')}>BP Usage{bpSort.sortIndicator('percentage')}</th>
+                  <th className="text-left py-2 font-medium text-text-primary" onClick={() => bpSort.handleSort('actionDescription')}>Action{bpSort.sortIndicator('actionDescription')}</th>
                 </tr>
               </thead>
               <tbody>
-                {bpThresholds.map((t) => (
+                {bpSort.sorted.map((t) => (
                   <tr key={t.id} className="border-b border-border">
                     <td className="py-2 pr-4 font-medium text-text-primary">{t.percentage}%</td>
                     <td className="py-2 text-text-secondary">{t.actionDescription}</td>
@@ -282,14 +299,14 @@ function RiskManagementView({ plan }: { plan: TradingPlan }) {
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 pr-4 font-medium text-text-primary">Strategy</th>
-                  <th className="text-left py-2 pr-4 font-medium text-text-primary">Max Positions</th>
-                  <th className="text-left py-2 font-medium text-text-primary">Max Per Underlying</th>
+                <tr className="border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-accent">
+                  <th className="text-left py-2 pr-4 font-medium text-text-primary" onClick={() => limitSort.handleSort('strategyName')}>Strategy{limitSort.sortIndicator('strategyName')}</th>
+                  <th className="text-left py-2 pr-4 font-medium text-text-primary" onClick={() => limitSort.handleSort('maxPositions')}>Max Positions{limitSort.sortIndicator('maxPositions')}</th>
+                  <th className="text-left py-2 font-medium text-text-primary" onClick={() => limitSort.handleSort('maxPerUnderlying')}>Max Per Underlying{limitSort.sortIndicator('maxPerUnderlying')}</th>
                 </tr>
               </thead>
               <tbody>
-                {positionLimits.map((l) => (
+                {limitSort.sorted.map((l) => (
                   <tr key={l.id} className="border-b border-border">
                     <td className="py-2 pr-4 font-medium text-text-primary">{l.strategyName}</td>
                     <td className="py-2 pr-4 text-text-secondary">{l.maxPositions}</td>
@@ -456,6 +473,12 @@ function AccountSizingView({ plan }: { plan: TradingPlan }) {
   const { totalAccountSize, allocations } = plan.accountSizing;
   const totalAllocation = allocations.reduce((sum, a) => sum + a.allocationPercentage, 0);
 
+  const allocSort = useTableSort<typeof allocations[number], 'categoryName' | 'allocationPercentage' | 'numberOfPositions' | 'positionSizing'>(
+    allocations,
+    (row, key) => row[key],
+    { initialKey: 'categoryName', initialDir: 'asc', defaultDirForKey: { allocationPercentage: 'desc', numberOfPositions: 'desc' } },
+  );
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-text-primary">Account Sizing & Strategy Allocation</h2>
@@ -479,16 +502,16 @@ function AccountSizingView({ plan }: { plan: TradingPlan }) {
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 pr-4 font-medium text-text-primary">Category</th>
-                  <th className="text-right py-2 pr-4 font-medium text-text-primary">Allocation</th>
-                  <th className="text-right py-2 pr-4 font-medium text-text-primary">Dollar Amount</th>
-                  <th className="text-right py-2 pr-4 font-medium text-text-primary">Positions</th>
-                  <th className="text-left py-2 font-medium text-text-primary">Sizing</th>
+                <tr className="border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-accent">
+                  <th className="text-left py-2 pr-4 font-medium text-text-primary" onClick={() => allocSort.handleSort('categoryName')}>Category{allocSort.sortIndicator('categoryName')}</th>
+                  <th className="text-right py-2 pr-4 font-medium text-text-primary" onClick={() => allocSort.handleSort('allocationPercentage')}>Allocation{allocSort.sortIndicator('allocationPercentage')}</th>
+                  <th className="text-right py-2 pr-4 font-medium text-text-primary" onClick={() => allocSort.handleSort('allocationPercentage')}>Dollar Amount{allocSort.sortIndicator('allocationPercentage')}</th>
+                  <th className="text-right py-2 pr-4 font-medium text-text-primary" onClick={() => allocSort.handleSort('numberOfPositions')}>Positions{allocSort.sortIndicator('numberOfPositions')}</th>
+                  <th className="text-left py-2 font-medium text-text-primary" onClick={() => allocSort.handleSort('positionSizing')}>Sizing{allocSort.sortIndicator('positionSizing')}</th>
                 </tr>
               </thead>
               <tbody>
-                {allocations.map((a) => (
+                {allocSort.sorted.map((a) => (
                   <tr key={a.id} className="border-b border-border">
                     <td className="py-2 pr-4 font-medium text-text-primary">{a.categoryName}</td>
                     <td className="py-2 pr-4 text-right text-text-secondary">{formatPercentage(a.allocationPercentage)}</td>
@@ -582,6 +605,11 @@ function StrategiesView({ strategies, title, planId }: { strategies: Strategy[];
 }
 
 function StrategyDetailCard({ strategy, planId }: { strategy: Strategy; planId: string }) {
+  const entrySort = useTableSort<typeof strategy.entryCriteria[number], 'parameterName' | 'value'>(
+    strategy.entryCriteria,
+    (row, key) => row[key],
+    { initialKey: 'parameterName', initialDir: 'asc' },
+  );
   return (
     <Card className="border border-border">
       <div className="flex items-center gap-2 mb-3">
@@ -616,13 +644,13 @@ function StrategyDetailCard({ strategy, planId }: { strategy: Strategy; planId: 
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-1 pr-3 font-medium text-text-secondary">Parameter</th>
-                    <th className="text-left py-1 font-medium text-text-secondary">Value</th>
+                  <tr className="border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+                    <th className="text-left py-1 pr-3 font-medium text-text-secondary" onClick={() => entrySort.handleSort('parameterName')}>Parameter{entrySort.sortIndicator('parameterName')}</th>
+                    <th className="text-left py-1 font-medium text-text-secondary" onClick={() => entrySort.handleSort('value')}>Value{entrySort.sortIndicator('value')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {strategy.entryCriteria.map((c) => (
+                  {entrySort.sorted.map((c) => (
                     <tr key={c.id} className="border-b border-gray-50">
                       <td className="py-1 pr-3 text-text-primary">{c.parameterName}</td>
                       <td className="py-1 text-text-primary font-medium">{c.value}</td>
@@ -716,6 +744,18 @@ function StrategyRecentTrades({ strategyId, planId }: { strategyId: string; plan
     return () => { cancelled = true; };
   }, [strategyId, planId]);
 
+  const recentSort = useTableSort<TradeJournalEntry, 'stockSymbol' | 'openDate' | 'tradeStatus' | 'profitLoss'>(
+    entries,
+    (row, key) => {
+      switch (key) {
+        case 'openDate': return row.openDate ? new Date(row.openDate).getTime() : null;
+        case 'profitLoss': return row.profitLoss ?? null;
+        default: return row[key] as string | number | null | undefined;
+      }
+    },
+    { initialKey: 'stockSymbol', initialDir: 'asc', defaultDirForKey: { openDate: 'desc', profitLoss: 'desc' } },
+  );
+
   if (isLoading) {
     return null;
   }
@@ -729,15 +769,15 @@ function StrategyRecentTrades({ strategyId, planId }: { strategyId: string; plan
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-1 pr-3 font-medium text-text-secondary">Symbol</th>
-                <th className="text-left py-1 pr-3 font-medium text-text-secondary">Date</th>
-                <th className="text-left py-1 pr-3 font-medium text-text-secondary">Status</th>
-                <th className="text-right py-1 font-medium text-text-secondary">P/L</th>
+              <tr className="border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+                <th className="text-left py-1 pr-3 font-medium text-text-secondary" onClick={() => recentSort.handleSort('stockSymbol')}>Symbol{recentSort.sortIndicator('stockSymbol')}</th>
+                <th className="text-left py-1 pr-3 font-medium text-text-secondary" onClick={() => recentSort.handleSort('openDate')}>Date{recentSort.sortIndicator('openDate')}</th>
+                <th className="text-left py-1 pr-3 font-medium text-text-secondary" onClick={() => recentSort.handleSort('tradeStatus')}>Status{recentSort.sortIndicator('tradeStatus')}</th>
+                <th className="text-right py-1 font-medium text-text-secondary" onClick={() => recentSort.handleSort('profitLoss')}>P/L{recentSort.sortIndicator('profitLoss')}</th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
+              {recentSort.sorted.map((entry) => (
                 <tr key={entry.id} className="border-b border-gray-50">
                   <td className="py-1 pr-3 font-medium text-text-primary">{entry.stockSymbol}</td>
                   <td className="py-1 pr-3 text-text-secondary">

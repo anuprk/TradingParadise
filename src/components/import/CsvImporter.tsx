@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { parseCsvToEntries, type CsvParseResult } from '../../utils/csvImport';
 import { useJournalStore } from '../../stores/journalStore';
 import { useAppStore } from '../../stores/appStore';
@@ -7,6 +7,7 @@ import Badge from '../ui/Badge';
 import Card from '../ui/Card';
 import Input from '../ui/Input';
 import { formatCurrency } from '../../utils/formatters';
+import { useTableSort } from '../../hooks/useTableSort';
 import type { TradeJournalEntry } from '../../types/journal';
 
 interface CsvImporterProps {
@@ -125,6 +126,21 @@ export default function CsvImporter({ planId, portfolioId }: CsvImporterProps) {
 
   const stats = parseResult ? computeStats(parseResult.entries) : null;
 
+  // Sortable "Trades Preview" (first 50 rows) — default Symbol ascending.
+  const previewEntries = useMemo(() => (parseResult?.entries ?? []).slice(0, 50), [parseResult]);
+  const previewSort = useTableSort<TradeJournalEntry, 'stockSymbol' | 'optionType' | 'direction' | 'openDate' | 'strikePrice' | 'premium' | 'profitLoss' | 'tradeStatus' | 'winLoss'>(
+    previewEntries,
+    (row, key) => {
+      switch (key) {
+        case 'openDate': return row.openDate ? new Date(row.openDate).getTime() : null;
+        case 'profitLoss': return row.profitLoss ?? null;
+        case 'winLoss': return row.winLoss ?? '';
+        default: return row[key] as string | number | null | undefined;
+      }
+    },
+    { initialKey: 'stockSymbol', initialDir: 'asc', defaultDirForKey: { openDate: 'desc', strikePrice: 'desc', premium: 'desc', profitLoss: 'desc' } },
+  );
+
   return (
     <div className="space-y-4">
       {/* Step 1: Upload */}
@@ -215,13 +231,16 @@ export default function CsvImporter({ planId, portfolioId }: CsvImporterProps) {
               <table className="min-w-full divide-y divide-border text-xs">
                 <thead className="bg-surface-tertiary sticky top-0">
                   <tr>
-                    {['Symbol','Type','Dir','Open','Strike','Premium','P/L','Status','W/L'].map((h) => (
-                      <th key={h} className="px-2 py-2 text-left font-medium text-text-secondary">{h}</th>
+                    {([
+                      ['stockSymbol', 'Symbol'], ['optionType', 'Type'], ['direction', 'Dir'], ['openDate', 'Open'],
+                      ['strikePrice', 'Strike'], ['premium', 'Premium'], ['profitLoss', 'P/L'], ['tradeStatus', 'Status'], ['winLoss', 'W/L'],
+                    ] as const).map(([key, label]) => (
+                      <th key={key} className="px-2 py-2 text-left font-medium text-text-secondary cursor-pointer select-none hover:text-text-primary" onClick={() => previewSort.handleSort(key)}>{label}{previewSort.sortIndicator(key)}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {parseResult.entries.slice(0, 50).map((entry) => (
+                  {previewSort.sorted.map((entry) => (
                     <tr key={entry.id} className="hover:bg-surface-tertiary">
                       <td className="px-2 py-1.5 font-medium text-text-primary">{entry.stockSymbol}</td>
                       <td className="px-2 py-1.5"><Badge variant={entry.optionType === 'Call' ? 'info' : 'warning'}>{entry.optionType}</Badge></td>

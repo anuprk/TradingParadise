@@ -8,7 +8,9 @@ import PerformanceMetrics from './PerformanceMetrics';
 import PerformanceChart from './PerformanceChart';
 import PositionsList from './PositionsList';
 import StrategyBreakdown from './StrategyBreakdown';
+import { useTableSort } from '../../hooks/useTableSort';
 import { formatCurrency, formatProfitLoss } from '../../utils/formatters';
+import type { TradeJournalEntry } from '../../types/journal';
 
 /**
  * Main portfolio dashboard displaying key metrics, performance,
@@ -54,6 +56,20 @@ export default function PortfolioDashboard({ portfolioId }: PortfolioDashboardPr
     }
     return map;
   }, [currentPlan]);
+
+  // First 20 entries shown in the Journal Entries table (sortable).
+  const visibleEntries = useMemo(() => portfolioEntries.slice(0, 20), [portfolioEntries]);
+  const journalSort = useTableSort<TradeJournalEntry, 'stockSymbol' | 'optionType' | 'tradeStatus' | 'openDate' | 'premium' | 'profitLoss'>(
+    visibleEntries,
+    (row, key) => {
+      switch (key) {
+        case 'openDate': return row.openDate ? new Date(row.openDate).getTime() : null;
+        case 'profitLoss': return row.profitLoss ?? row.unrealizedPL ?? null;
+        default: return row[key] as string | number | null | undefined;
+      }
+    },
+    { initialKey: 'stockSymbol', initialDir: 'asc', defaultDirForKey: { openDate: 'desc', premium: 'desc', profitLoss: 'desc' } },
+  );
 
   if (isLoading) {
     return (
@@ -125,17 +141,17 @@ export default function PortfolioDashboard({ portfolioId }: PortfolioDashboardPr
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border text-sm">
               <thead className="bg-surface-tertiary">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">Symbol</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">Type</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">Status</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">Open Date</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase">Premium</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase">P/L</th>
+                <tr className="[&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase" onClick={() => journalSort.handleSort('stockSymbol')}>Symbol{journalSort.sortIndicator('stockSymbol')}</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase" onClick={() => journalSort.handleSort('optionType')}>Type{journalSort.sortIndicator('optionType')}</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase" onClick={() => journalSort.handleSort('tradeStatus')}>Status{journalSort.sortIndicator('tradeStatus')}</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase" onClick={() => journalSort.handleSort('openDate')}>Open Date{journalSort.sortIndicator('openDate')}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase" onClick={() => journalSort.handleSort('premium')}>Premium{journalSort.sortIndicator('premium')}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase" onClick={() => journalSort.handleSort('profitLoss')}>P/L{journalSort.sortIndicator('profitLoss')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {portfolioEntries.slice(0, 20).map((entry) => (
+                {journalSort.sorted.map((entry) => (
                   <tr key={entry.id}>
                     <td className="px-3 py-2 font-medium text-text-primary">{entry.stockSymbol}</td>
                     <td className="px-3 py-2">

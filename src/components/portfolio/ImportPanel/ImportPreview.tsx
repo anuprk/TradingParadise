@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { ParseResult, DuplicateReport } from '../../../types/transaction';
 import Button from '../../ui/Button';
+import { useTableSort } from '../../../hooks/useTableSort';
 
 const PAGE_SIZE = 50;
 
@@ -25,18 +26,54 @@ export default function ImportPreview({
     return new Set(duplicateReport.duplicates.map((d) => d.transaction.id));
   }, [duplicateReport.duplicates]);
 
+  // Sortable duplicates list — default Symbol ascending.
+  const dupSort = useTableSort<DuplicateReport['duplicates'][number], 'symbol' | 'date' | 'strikePrice'>(
+    duplicateReport.duplicates,
+    (dup, key) => {
+      switch (key) {
+        case 'symbol': return dup.transaction.symbol;
+        case 'date': {
+          const d = dup.transaction.transactionDate;
+          return d instanceof Date ? d.getTime() : new Date(d).getTime();
+        }
+        case 'strikePrice': return dup.transaction.strikePrice ?? null;
+        default: return null;
+      }
+    },
+    { initialKey: 'symbol', initialDir: 'asc', defaultDirForKey: { date: 'desc', strikePrice: 'desc' } },
+  );
+
   // Build a set of error row numbers for quick lookup
   const errorRowNumbers = useMemo(() => {
     return new Set(parseResult.errors.map((e) => e.row));
   }, [parseResult.errors]);
 
-  // All transactions from the parse result for the preview table
-  const allTransactions = parseResult.transactions;
+  // All transactions from the parse result for the preview table.
+  // Capture each row's original 1-based position so error highlighting stays
+  // correct regardless of sort order.
+  const allTransactions = useMemo(
+    () => parseResult.transactions.map((txn, i) => ({ ...txn, __rowNumber: i + 1 })),
+    [parseResult.transactions],
+  );
+
+  // Sortable preview — default Symbol ascending.
+  const previewSort = useTableSort<typeof allTransactions[number], 'transactionDate' | 'symbol' | 'transactionType' | 'quantity' | 'price' | 'fees'>(
+    allTransactions,
+    (row, key) => {
+      if (key === 'transactionDate') {
+        const d = row.transactionDate;
+        return d instanceof Date ? d.getTime() : new Date(d).getTime();
+      }
+      return row[key] as string | number | null | undefined;
+    },
+    { initialKey: 'symbol', initialDir: 'asc', defaultDirForKey: { transactionDate: 'desc', quantity: 'desc', price: 'desc', fees: 'desc' } },
+  );
+
   const totalPages = Math.max(1, Math.ceil(allTransactions.length / PAGE_SIZE));
   const paginatedTransactions = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return allTransactions.slice(start, start + PAGE_SIZE);
-  }, [allTransactions, currentPage]);
+    return previewSort.sorted.slice(start, start + PAGE_SIZE);
+  }, [previewSort.sorted, currentPage]);
 
   const handleOverrideToggle = useCallback((transactionId: string) => {
     setOverriddenIds((prev) => {
@@ -116,19 +153,19 @@ export default function ImportPreview({
                   <th className="px-3 py-2 text-left font-medium text-amber-800">
                     Include
                   </th>
-                  <th className="px-3 py-2 text-left font-medium text-amber-800">
-                    Symbol
+                  <th className="px-3 py-2 text-left font-medium text-amber-800 cursor-pointer select-none" onClick={() => dupSort.handleSort('symbol')}>
+                    Symbol{dupSort.sortIndicator('symbol')}
                   </th>
-                  <th className="px-3 py-2 text-left font-medium text-amber-800">
-                    Date
+                  <th className="px-3 py-2 text-left font-medium text-amber-800 cursor-pointer select-none" onClick={() => dupSort.handleSort('date')}>
+                    Date{dupSort.sortIndicator('date')}
                   </th>
-                  <th className="px-3 py-2 text-left font-medium text-amber-800">
-                    Strike Price
+                  <th className="px-3 py-2 text-left font-medium text-amber-800 cursor-pointer select-none" onClick={() => dupSort.handleSort('strikePrice')}>
+                    Strike Price{dupSort.sortIndicator('strikePrice')}
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-amber-100">
-                {duplicateReport.duplicates.map((dup) => (
+                {dupSort.sorted.map((dup) => (
                   <tr key={dup.transaction.id} className="bg-amber-25">
                     <td className="px-3 py-2">
                       <input
@@ -172,33 +209,31 @@ export default function ImportPreview({
         <div className="border border-border rounded-md overflow-auto max-h-96">
           <table className="min-w-full text-xs">
             <thead className="bg-surface-tertiary sticky top-0">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium text-text-secondary">
-                  Date
+              <tr className="[&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+                <th className="px-3 py-2 text-left font-medium text-text-secondary" onClick={() => previewSort.handleSort('transactionDate')}>
+                  <span>Date</span><span>{previewSort.sortIndicator('transactionDate')}</span>
                 </th>
-                <th className="px-3 py-2 text-left font-medium text-text-secondary">
-                  Symbol
+                <th className="px-3 py-2 text-left font-medium text-text-secondary" onClick={() => previewSort.handleSort('symbol')}>
+                  <span>Symbol</span><span>{previewSort.sortIndicator('symbol')}</span>
                 </th>
-                <th className="px-3 py-2 text-left font-medium text-text-secondary">
-                  Type
+                <th className="px-3 py-2 text-left font-medium text-text-secondary" onClick={() => previewSort.handleSort('transactionType')}>
+                  <span>Type</span><span>{previewSort.sortIndicator('transactionType')}</span>
                 </th>
-                <th className="px-3 py-2 text-right font-medium text-text-secondary">
-                  Quantity
+                <th className="px-3 py-2 text-right font-medium text-text-secondary" onClick={() => previewSort.handleSort('quantity')}>
+                  <span>Quantity</span><span>{previewSort.sortIndicator('quantity')}</span>
                 </th>
-                <th className="px-3 py-2 text-right font-medium text-text-secondary">
-                  Price
+                <th className="px-3 py-2 text-right font-medium text-text-secondary" onClick={() => previewSort.handleSort('price')}>
+                  <span>Price</span><span>{previewSort.sortIndicator('price')}</span>
                 </th>
-                <th className="px-3 py-2 text-right font-medium text-text-secondary">
-                  Fees
+                <th className="px-3 py-2 text-right font-medium text-text-secondary" onClick={() => previewSort.handleSort('fees')}>
+                  <span>Fees</span><span>{previewSort.sortIndicator('fees')}</span>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {paginatedTransactions.map((txn, index) => {
+              {paginatedTransactions.map((txn) => {
                 const isDuplicate = duplicateIds.has(txn.id);
-                const isError = errorRowNumbers.has(
-                  (currentPage - 1) * PAGE_SIZE + index + 1,
-                );
+                const isError = errorRowNumbers.has(txn.__rowNumber);
 
                 let rowClass = 'bg-surface-secondary';
                 if (isDuplicate) {

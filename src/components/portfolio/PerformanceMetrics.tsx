@@ -1,5 +1,6 @@
 import type { PortfolioMetrics } from '../../types/portfolio';
 import Card from '../ui/Card';
+import { useTableSort } from '../../hooks/useTableSort';
 import { formatCurrency, formatPercentage, formatNumber } from '../../utils/formatters';
 
 /**
@@ -22,6 +23,12 @@ export default function PerformanceMetrics({ metrics }: PerformanceMetricsProps)
     { label: 'Total Trades', value: formatNumber(metrics.totalTrades, 0) },
   ];
 
+  const monthlySort = useTableSort<PortfolioMetrics['monthlyReturns'][number], 'month' | 'dollarReturn' | 'percentageReturn'>(
+    metrics.monthlyReturns,
+    (row, key) => row[key],
+    { initialKey: 'month', initialDir: 'asc', defaultDirForKey: { dollarReturn: 'desc', percentageReturn: 'desc' } },
+  );
+
   return (
     <Card title="Performance Metrics">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
@@ -39,14 +46,14 @@ export default function PerformanceMetrics({ metrics }: PerformanceMetricsProps)
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border text-sm">
               <thead className="bg-surface-tertiary">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">Month</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase">Dollar Return</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase">% Return</th>
+                <tr className="[&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase" onClick={() => monthlySort.handleSort('month')}>Month{monthlySort.sortIndicator('month')}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase" onClick={() => monthlySort.handleSort('dollarReturn')}>Dollar Return{monthlySort.sortIndicator('dollarReturn')}</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase" onClick={() => monthlySort.handleSort('percentageReturn')}>% Return{monthlySort.sortIndicator('percentageReturn')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {metrics.monthlyReturns.map((mr) => (
+                {monthlySort.sorted.map((mr) => (
                   <tr key={mr.month}>
                     <td className="px-3 py-2 text-text-primary">{mr.month}</td>
                     <td className={`px-3 py-2 text-right ${mr.dollarReturn >= 0 ? 'text-success' : 'text-error'}`}>

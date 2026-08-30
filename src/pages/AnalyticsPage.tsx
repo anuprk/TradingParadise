@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Brush } from 'recharts';
 import { useAppStore } from '../stores/appStore';
 import { useTradingPlan } from '../hooks/useTradingPlan';
+import { useTableSort } from '../hooks/useTableSort';
 import { listJournalEntries } from '../db/journalRepository';
 import { formatProfitLoss } from '../utils/formatters';
 import Card from '../components/ui/Card';
@@ -139,6 +140,21 @@ export default function AnalyticsPage() {
       .slice(0, 20);
   }, [filteredTrades]);
 
+  // Sortable "Recent Closed Trades" table — default to Symbol ascending.
+  const recentSort = useTableSort<TradeJournalEntry, 'closeDate' | 'stockSymbol' | 'strategy' | 'profitLoss' | 'daysHeld' | 'campaign'>(
+    recentTrades,
+    (row, key) => {
+      switch (key) {
+        case 'closeDate': return row.closeDate ? new Date(row.closeDate).getTime() : null;
+        case 'strategy': return strategies.get(row.strategyId) || '';
+        case 'profitLoss': return row.profitLoss ?? null;
+        case 'campaign': return (row.campaign || '').trim();
+        default: return row[key] as string | number | null | undefined;
+      }
+    },
+    { initialKey: 'stockSymbol', initialDir: 'asc', defaultDirForKey: { closeDate: 'desc', profitLoss: 'desc', daysHeld: 'desc' } },
+  );
+
   if (!activePlanId) {
     return <div className="p-6"><h1 className="text-2xl font-bold text-text-primary">Analytics</h1><p className="mt-2 text-text-secondary">Select a plan from the sidebar.</p></div>;
   }
@@ -237,10 +253,10 @@ export default function AnalyticsPage() {
       <Card title="Recent Closed Trades">
         <div className="overflow-x-auto max-h-64 overflow-y-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-surface-secondary"><tr className="text-left text-text-secondary border-b border-border">
-              <th className="pb-1 pr-2">Date</th><th className="pb-1 pr-2">Symbol</th><th className="pb-1 pr-2">Strategy</th><th className="pb-1 pr-2">P/L</th><th className="pb-1 pr-2">Days</th><th className="pb-1">Campaign</th>
+            <thead className="sticky top-0 bg-surface-secondary"><tr className="text-left text-text-secondary border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+              <th className="pb-1 pr-2" onClick={() => recentSort.handleSort('closeDate')}>Date{recentSort.sortIndicator('closeDate')}</th><th className="pb-1 pr-2" onClick={() => recentSort.handleSort('stockSymbol')}>Symbol{recentSort.sortIndicator('stockSymbol')}</th><th className="pb-1 pr-2" onClick={() => recentSort.handleSort('strategy')}>Strategy{recentSort.sortIndicator('strategy')}</th><th className="pb-1 pr-2" onClick={() => recentSort.handleSort('profitLoss')}>P/L{recentSort.sortIndicator('profitLoss')}</th><th className="pb-1 pr-2" onClick={() => recentSort.handleSort('daysHeld')}>Days{recentSort.sortIndicator('daysHeld')}</th><th className="pb-1" onClick={() => recentSort.handleSort('campaign')}>Campaign{recentSort.sortIndicator('campaign')}</th>
             </tr></thead>
-            <tbody>{recentTrades.map((t) => (
+            <tbody>{recentSort.sorted.map((t) => (
               <tr key={t.id} className="border-t border-border/50">
                 <td className="py-1 pr-2 text-text-secondary">{t.closeDate ? new Date(t.closeDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</td>
                 <td className="py-1 pr-2 font-medium text-text-primary">{t.stockSymbol}</td>
@@ -279,14 +295,19 @@ function InsightCard({ question, value, detail, status }: { question: string; va
 }
 
 function BreakdownTable({ title, data, onDrillDown }: { title: string; data: { name: string; trades: number; winRate: number; totalPL: number }[]; onDrillDown: (name: string) => void }) {
+  const s = useTableSort<typeof data[number], 'name' | 'winRate' | 'totalPL'>(
+    data,
+    (row, key) => row[key],
+    { initialKey: 'name', initialDir: 'asc', defaultDirForKey: { winRate: 'desc', totalPL: 'desc' } },
+  );
   return (
     <Card title={title}>
       <div className="overflow-y-auto max-h-48">
         <table className="w-full text-xs">
-          <thead><tr className="text-left text-text-secondary border-b border-border">
-            <th className="pb-1 pr-2">Name</th><th className="pb-1 pr-2">Win%</th><th className="pb-1">P/L</th>
+          <thead><tr className="text-left text-text-secondary border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+            <th className="pb-1 pr-2" onClick={() => s.handleSort('name')}>Name{s.sortIndicator('name')}</th><th className="pb-1 pr-2" onClick={() => s.handleSort('winRate')}>Win%{s.sortIndicator('winRate')}</th><th className="pb-1" onClick={() => s.handleSort('totalPL')}>P/L{s.sortIndicator('totalPL')}</th>
           </tr></thead>
-          <tbody>{data.map((row) => (
+          <tbody>{s.sorted.map((row) => (
             <tr key={row.name} className="border-t border-border/50 cursor-pointer hover:bg-surface-tertiary" onClick={() => onDrillDown(row.name)}>
               <td className="py-1 pr-2 font-medium text-text-accent">{row.name}</td>
               <td className="py-1 pr-2">{row.winRate.toFixed(0)}%</td>

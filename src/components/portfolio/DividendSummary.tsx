@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { formatCurrency } from '../../utils/formatters';
+import { useTableSort } from '../../hooks/useTableSort';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { fetchStockQuotes, type StockQuote } from '../../utils/stockPrice';
@@ -153,6 +154,34 @@ export default function DividendSummary({ portfolioId }: DividendSummaryProps) {
     return { calendar, monthTotals, grandTotal: monthTotals.reduce((s, v) => s + v, 0) };
   }, [dividendHoldings, actualDividends]);
 
+  // Sortable "Projected Dividend Income" table — default Symbol ascending.
+  const incomeSort = useTableSort<typeof dividendHoldings[number], 'symbol' | 'qty' | 'dividendRate' | 'yield' | 'freq' | 'monthlyDiv' | 'annualDiv'>(
+    dividendHoldings,
+    (row, key) => row[key],
+    { initialKey: 'symbol', initialDir: 'asc', defaultDirForKey: { qty: 'desc', dividendRate: 'desc', yield: 'desc', monthlyDiv: 'desc', annualDiv: 'desc' } },
+  );
+
+  // Sortable "Monthly Dividend Calendar" grid — default Symbol ascending.
+  // key: 'symbol' | 'freq' | 'total' | month index (0-11).
+  const calendarSort = useTableSort<typeof monthlyCalendar.calendar[number], 'symbol' | 'freq' | 'total' | `m${number}`>(
+    monthlyCalendar.calendar,
+    (row, key) => {
+      if (key === 'symbol') return row.symbol;
+      if (key === 'freq') return row.freq;
+      if (key === 'total') return row.total;
+      const idx = Number(key.slice(1)); // 'm0'..'m11'
+      return row.months[idx] ?? 0;
+    },
+    {
+      initialKey: 'symbol',
+      initialDir: 'asc',
+      defaultDirForKey: {
+        total: 'desc',
+        ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`m${i}`, 'desc'])),
+      } as Partial<Record<'symbol' | 'freq' | 'total' | `m${number}`, 'asc' | 'desc'>>,
+    },
+  );
+
   if (sortedHoldings.length === 0) {
     return <p className="text-sm text-text-secondary text-center py-4">No holdings to project dividends from.</p>;
   }
@@ -186,18 +215,18 @@ export default function DividendSummary({ portfolioId }: DividendSummaryProps) {
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border text-xs">
               <thead className="bg-surface-tertiary">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-text-secondary uppercase">Symbol</th>
-                  <th className="px-3 py-2 text-right font-medium text-text-secondary uppercase">Qty</th>
-                  <th className="px-3 py-2 text-right font-medium text-text-secondary uppercase">Div/Share</th>
-                  <th className="px-3 py-2 text-right font-medium text-text-secondary uppercase">Yield</th>
-                  <th className="px-3 py-2 text-center font-medium text-text-secondary uppercase">Freq</th>
-                  <th className="px-3 py-2 text-right font-medium text-text-secondary uppercase">Monthly</th>
-                  <th className="px-3 py-2 text-right font-medium text-text-secondary uppercase">Annual</th>
+                <tr className="[&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+                  <th className="px-3 py-2 text-left font-medium text-text-secondary uppercase" onClick={() => incomeSort.handleSort('symbol')}>Symbol{incomeSort.sortIndicator('symbol')}</th>
+                  <th className="px-3 py-2 text-right font-medium text-text-secondary uppercase" onClick={() => incomeSort.handleSort('qty')}>Qty{incomeSort.sortIndicator('qty')}</th>
+                  <th className="px-3 py-2 text-right font-medium text-text-secondary uppercase" onClick={() => incomeSort.handleSort('dividendRate')}>Div/Share{incomeSort.sortIndicator('dividendRate')}</th>
+                  <th className="px-3 py-2 text-right font-medium text-text-secondary uppercase" onClick={() => incomeSort.handleSort('yield')}>Yield{incomeSort.sortIndicator('yield')}</th>
+                  <th className="px-3 py-2 text-center font-medium text-text-secondary uppercase" onClick={() => incomeSort.handleSort('freq')}>Freq{incomeSort.sortIndicator('freq')}</th>
+                  <th className="px-3 py-2 text-right font-medium text-text-secondary uppercase" onClick={() => incomeSort.handleSort('monthlyDiv')}>Monthly{incomeSort.sortIndicator('monthlyDiv')}</th>
+                  <th className="px-3 py-2 text-right font-medium text-text-secondary uppercase" onClick={() => incomeSort.handleSort('annualDiv')}>Annual{incomeSort.sortIndicator('annualDiv')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {dividendHoldings.map((d) => (
+                {incomeSort.sorted.map((d) => (
                   <tr key={d.symbol} className="hover:bg-surface-tertiary">
                     <td className="px-3 py-2 font-medium text-text-primary">{d.symbol}</td>
                     <td className="px-3 py-2 text-right text-text-primary">{d.qty}</td>
@@ -237,15 +266,15 @@ export default function DividendSummary({ portfolioId }: DividendSummaryProps) {
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="py-1.5 px-2 text-left text-text-secondary font-medium sticky left-0 bg-surface-secondary z-10">Symbol</th>
-                  <th className="py-1.5 px-2 text-center text-text-secondary font-medium">Freq</th>
-                  {MONTHS.map((m) => <th key={m} className="py-1.5 px-2 text-right text-text-secondary font-medium">{m}</th>)}
-                  <th className="py-1.5 px-2 text-right text-text-secondary font-medium">Total</th>
+                <tr className="border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+                  <th className="py-1.5 px-2 text-left text-text-secondary font-medium sticky left-0 bg-surface-secondary z-10" onClick={() => calendarSort.handleSort('symbol')}>Symbol{calendarSort.sortIndicator('symbol')}</th>
+                  <th className="py-1.5 px-2 text-center text-text-secondary font-medium" onClick={() => calendarSort.handleSort('freq')}>Freq{calendarSort.sortIndicator('freq')}</th>
+                  {MONTHS.map((m, idx) => <th key={m} className="py-1.5 px-2 text-right text-text-secondary font-medium" onClick={() => calendarSort.handleSort(`m${idx}`)}>{m}{calendarSort.sortIndicator(`m${idx}`)}</th>)}
+                  <th className="py-1.5 px-2 text-right text-text-secondary font-medium" onClick={() => calendarSort.handleSort('total')}>Total{calendarSort.sortIndicator('total')}</th>
                 </tr>
               </thead>
               <tbody>
-                {monthlyCalendar.calendar.map((row) => (
+                {calendarSort.sorted.map((row) => (
                   <tr key={row.symbol} className="border-b border-border/50 hover:bg-surface-tertiary">
                     <td className="py-1.5 px-2 font-medium text-text-primary sticky left-0 bg-surface-secondary">{row.symbol}</td>
                     <td className="py-1.5 px-2 text-center">

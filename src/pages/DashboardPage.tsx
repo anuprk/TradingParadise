@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import PLCalendar from '../components/dashboard/PLCalendar';
 import { useTradingPlan } from '../hooks/useTradingPlan';
+import { useTableSort } from '../hooks/useTableSort';
 import { usePlanStore } from '../stores/planStore';
 import { useAppStore } from '../stores/appStore';
 import { formatCurrency, formatProfitLoss } from '../utils/formatters';
@@ -309,6 +310,36 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
     return t;
   }, [symbolMonthData]);
 
+  // Sort state for the Income by Symbol table.
+  // key: 'symbol' | 'total' | month index (0-11). Default: total descending.
+  const [incomeSort, setIncomeSort] = useState<{ key: 'symbol' | 'total' | number; dir: 'asc' | 'desc' }>({ key: 'total', dir: 'desc' });
+
+  const handleIncomeSort = (key: 'symbol' | 'total' | number) => {
+    setIncomeSort((prev) => {
+      if (prev.key === key) return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      // New column: symbol defaults to ascending (A→Z), numeric columns to descending.
+      return { key, dir: key === 'symbol' ? 'asc' : 'desc' };
+    });
+  };
+
+  const sortedSymbolMonthData = useMemo(() => {
+    const rows = [...symbolMonthData];
+    const { key, dir } = incomeSort;
+    const factor = dir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      if (key === 'symbol') return a.symbol.localeCompare(b.symbol) * factor;
+      if (key === 'total') return (a.total - b.total) * factor;
+      // Month column: treat missing values as 0 for ordering.
+      const av = a.monthMap.get(key) ?? 0;
+      const bv = b.monthMap.get(key) ?? 0;
+      return (av - bv) * factor;
+    });
+    return rows;
+  }, [symbolMonthData, incomeSort]);
+
+  const sortArrow = (key: 'symbol' | 'total' | number) =>
+    incomeSort.key === key ? (incomeSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+
   // Strategy performance — use name map, fallback to "Unknown Strategy"
   const strategyPerf = useMemo(() => {
     const closed = entries.filter((e) => e.tradeStatus !== 'Open' && e.profitLoss != null);
@@ -320,6 +351,20 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
       return { name: strategyNameMap.get(id) || 'Unknown Strategy', trades: trades.length, winRate: (wins / trades.length) * 100, totalPL, avgPL: totalPL / trades.length };
     }).sort((a, b) => b.totalPL - a.totalPL);
   }, [entries, strategyNameMap]);
+
+  // Sortable: Strategy Performance (default first column "name", ascending)
+  const strategySort = useTableSort<typeof strategyPerf[number], 'name' | 'trades' | 'winRate' | 'totalPL' | 'avgPL'>(
+    strategyPerf,
+    (row, key) => row[key],
+    { initialKey: 'name', initialDir: 'asc', defaultDirForKey: { trades: 'desc', winRate: 'desc', totalPL: 'desc', avgPL: 'desc' } },
+  );
+
+  // Sortable: Campaign Performance (default first column "campaign", ascending)
+  const campaignSort = useTableSort<typeof stats.campaignStats[number], 'campaign' | 'trades' | 'winRate' | 'pl' | 'wins'>(
+    stats.campaignStats,
+    (row, key) => row[key],
+    { initialKey: 'campaign', initialDir: 'asc', defaultDirForKey: { trades: 'desc', winRate: 'desc', pl: 'desc', wins: 'desc' } },
+  );
 
   return (
     <div className="space-y-4">
@@ -380,10 +425,10 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
           <Card title="Strategy Performance">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr className="text-left text-text-secondary border-b border-border">
-                  <th className="pb-1 pr-3">Strategy</th><th className="pb-1 pr-3">Trades</th><th className="pb-1 pr-3">Win Rate</th><th className="pb-1 pr-3">Total P/L</th><th className="pb-1">Avg P/L</th>
+                <thead><tr className="text-left text-text-secondary border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+                  <th className="pb-1 pr-3" onClick={() => strategySort.handleSort('name')}>Strategy{strategySort.sortIndicator('name')}</th><th className="pb-1 pr-3" onClick={() => strategySort.handleSort('trades')}>Trades{strategySort.sortIndicator('trades')}</th><th className="pb-1 pr-3" onClick={() => strategySort.handleSort('winRate')}>Win Rate{strategySort.sortIndicator('winRate')}</th><th className="pb-1 pr-3" onClick={() => strategySort.handleSort('totalPL')}>Total P/L{strategySort.sortIndicator('totalPL')}</th><th className="pb-1" onClick={() => strategySort.handleSort('avgPL')}>Avg P/L{strategySort.sortIndicator('avgPL')}</th>
                 </tr></thead>
-                <tbody>{strategyPerf.map((row) => (
+                <tbody>{strategySort.sorted.map((row) => (
                   <tr key={row.name} className="border-t border-border">
                     <td className="py-1 pr-3 font-medium text-text-primary">{row.name}</td>
                     <td className="py-1 pr-3 text-text-secondary">{row.trades}</td>
@@ -401,10 +446,10 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
           <Card title="Campaign Performance">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr className="text-left text-text-secondary border-b border-border">
-                  <th className="pb-1 pr-3">Campaign</th><th className="pb-1 pr-3">Trades</th><th className="pb-1 pr-3">Win Rate</th><th className="pb-1 pr-3">Total P/L</th><th className="pb-1">W/L</th>
+                <thead><tr className="text-left text-text-secondary border-b border-border [&>th]:cursor-pointer [&>th]:select-none [&>th]:hover:text-text-primary">
+                  <th className="pb-1 pr-3" onClick={() => campaignSort.handleSort('campaign')}>Campaign{campaignSort.sortIndicator('campaign')}</th><th className="pb-1 pr-3" onClick={() => campaignSort.handleSort('trades')}>Trades{campaignSort.sortIndicator('trades')}</th><th className="pb-1 pr-3" onClick={() => campaignSort.handleSort('winRate')}>Win Rate{campaignSort.sortIndicator('winRate')}</th><th className="pb-1 pr-3" onClick={() => campaignSort.handleSort('pl')}>Total P/L{campaignSort.sortIndicator('pl')}</th><th className="pb-1" onClick={() => campaignSort.handleSort('wins')}>W/L{campaignSort.sortIndicator('wins')}</th>
                 </tr></thead>
-                <tbody>{stats.campaignStats.map((cs) => (
+                <tbody>{campaignSort.sorted.map((cs) => (
                   <tr key={cs.campaign} className="border-t border-border">
                     <td className="py-1 pr-3 font-medium text-text-primary">{cs.campaign}</td>
                     <td className="py-1 pr-3 text-text-secondary">{cs.trades}</td>
@@ -425,11 +470,11 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">
               <thead><tr className="border-b border-border">
-                <th className="py-1.5 px-2 text-left text-text-secondary font-medium sticky left-0 bg-surface-secondary z-10">Symbol</th>
-                {MONTHS.map((m) => <th key={m} className="py-1.5 px-2 text-right text-text-secondary font-medium">{m}</th>)}
-                <th className="py-1.5 px-2 text-right text-text-secondary font-medium">Total</th>
+                <th onClick={() => handleIncomeSort('symbol')} className="py-1.5 px-2 text-left text-text-secondary font-medium sticky left-0 bg-surface-secondary z-10 cursor-pointer select-none hover:text-text-primary">Symbol{sortArrow('symbol')}</th>
+                {MONTHS.map((m, idx) => <th key={m} onClick={() => handleIncomeSort(idx)} className="py-1.5 px-2 text-right text-text-secondary font-medium cursor-pointer select-none hover:text-text-primary">{m}{sortArrow(idx)}</th>)}
+                <th onClick={() => handleIncomeSort('total')} className="py-1.5 px-2 text-right text-text-secondary font-medium cursor-pointer select-none hover:text-text-primary">Total{sortArrow('total')}</th>
               </tr></thead>
-              <tbody>{symbolMonthData.map(({ symbol, monthMap, total }) => (
+              <tbody>{sortedSymbolMonthData.map(({ symbol, monthMap, total }) => (
                 <tr key={symbol} className="border-b border-border/50 hover:bg-surface-tertiary">
                   <td className="py-1.5 px-2 font-medium text-text-primary sticky left-0 bg-surface-secondary">{symbol}</td>
                   {MONTHS.map((_, idx) => { const pl = monthMap.get(idx); return <td key={idx} className={`py-1.5 px-2 text-right ${pl != null ? (pl >= 0 ? 'text-success' : 'text-error') : ''}`}>{pl != null ? (pl >= 0 ? '+' : '') + pl.toFixed(0) : ''}</td>; })}
