@@ -40,6 +40,7 @@ const JournalPage = lazyWithRetry(() => import('./pages/JournalPage'));
 const TradeEntryPage = lazyWithRetry(() => import('./pages/TradeEntryPage'));
 const PortfolioPage = lazyWithRetry(() => import('./pages/PortfolioPage'));
 const PortfolioDashboardPage = lazyWithRetry(() => import('./pages/PortfolioDashboardPage'));
+const DiscordAlertsPage = lazyWithRetry(() => import('./pages/DiscordAlertsPage'));
 const RemindersPage = lazyWithRetry(() => import('./pages/RemindersPage'));
 const DailyNotesPage = lazyWithRetry(() => import('./pages/DailyNotesPage'));
 const PositionsPage = lazyWithRetry(() => import('./pages/PositionsPage'));
@@ -218,6 +219,14 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LoadingFallback />}>
             <RemindersPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'discord-alerts',
+        element: (
+          <Suspense fallback={<LoadingFallback />}>
+            <DiscordAlertsPage />
           </Suspense>
         ),
       },

@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest --run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "poc:discord": "tsx scripts/discord-alert-poc.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -54,6 +55,7 @@
     "globals": "^17.5.0",
     "jsdom": "^29.1.0",
     "tailwindcss": "^4.2.4",
+    "tsx": "^4.23.13",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10",

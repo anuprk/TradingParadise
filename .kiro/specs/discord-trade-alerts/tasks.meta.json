@@ -1,0 +1,499 @@
+{
+  "pbtResults": {
+    "3.1 Add parser property tests (extend existing file)": {
+      "status": "passed",
+      "lastRunTimestamp": 1788149769757
+    },
+    "4.7 Write property tests for insert payload and dedupe (mocked supabase)": {
+      "status": "passed",
+      "lastRunTimestamp": 1788150423398
+    },
+    "4.3 Write property tests for grouping and sorting": {
+      "status": "passed",
+      "lastRunTimestamp": 1788150623036
+    },
+    "6.3 Write property tests for validation and initial-build gate": {
+      "status": "passed",
+      "lastRunTimestamp": 1788209655491
+    }
+  },
+  "executionHistory": {
+    "1. Create database migration for Discord alert tables": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149582764
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149594202
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149656356
+      }
+    ],
+    "2.1 Define ingestion types": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149582821
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149595211
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149657061
+      }
+    ],
+    "2.2 Implement ManualPasteSource with raw-content cap": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149582872
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149798377
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150039856
+      }
+    ],
+    "4.1 Create repository row interfaces and mappers": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149582919
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149799817
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150040808
+      }
+    ],
+    "4.2 Implement pure grouping and sorting helpers": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149582970
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149800479
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150041907
+      }
+    ],
+    "4.4 Implement source CRUD functions": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583037
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150049740
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150164603
+      }
+    ],
+    "4.5 Implement alert query functions": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583075
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150169278
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150231160
+      }
+    ],
+    "4.6 Implement createAlert with retry, dedupe detection, and payload mapping": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583153
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150235805
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150298978
+      }
+    ],
+    "5. Checkpoint - Data, ingestion, and repository layers complete": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583203
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152376579
+      }
+    ],
+    "6.1 Create store state and source/alert loading actions": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583261
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152547472
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152627658
+      }
+    ],
+    "6.2 Implement pure validation and initial-build gate helpers": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583303
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152475451
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152542914
+      }
+    ],
+    "6.4 Implement submitAlert and confirmSaveAlert (parse-then-review)": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583354
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152631757
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152732193
+      }
+    ],
+    "7.1 Register the lazy DiscordAlertsPage route": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583400
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150051136
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150162444
+      }
+    ],
+    "7.2 Add the sidebar nav item within the mobile-visible slice": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583440
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150052077
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150163889
+      }
+    ],
+    "8.1 Create AlertSourceManager": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583491
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209678530
+      }
+    ],
+    "8.3 Create AlertSubmissionForm (parse-then-review)": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583550
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209679428
+      }
+    ],
+    "8.5 Create AlertViewer": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583593
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209680596
+      }
+    ],
+    "8.7 Create the DiscordAlertsPage container": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583632
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209686212
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209757206
+      }
+    ],
+    "9. Final checkpoint - Integration, wiring, and verification": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149583679
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209923146
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788210051491
+      }
+    ],
+    "3.1 Add parser property tests (extend existing file)": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149678035
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149791394
+      }
+    ],
+    "3. Add fast-check property tests for the reused parser": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788149791442
+      }
+    ],
+    "2. Implement the ingestion source abstraction": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150039890
+      }
+    ],
+    "7. Add routing and sidebar navigation": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150163926
+      }
+    ],
+    "4. Implement the repository layer": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150299013
+      }
+    ],
+    "4.3 Write property tests for grouping and sorting": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150309013
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150644321
+      }
+    ],
+    "4.7 Write property tests for insert payload and dedupe (mocked supabase)": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150310435
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150645275
+      }
+    ],
+    "4.8 Write unit tests for repository CRUD and retry behavior": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788150311231
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152339431
+      }
+    ],
+    "2.3 Write property test for raw-content cap": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152388018
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152466201
+      }
+    ],
+    "6. Implement the Zustand store": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152732266
+      }
+    ],
+    "6.3 Write property tests for validation and initial-build gate": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152739415
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209676126
+      }
+    ],
+    "6.5 Write unit tests for store submission flow": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788152740152
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209677069
+      }
+    ],
+    "8. Implement the UI components": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209757273
+      }
+    ],
+    "8.2 Write component tests for AlertSourceManager": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209763343
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209917641
+      }
+    ],
+    "8.4 Write component tests for AlertSubmissionForm": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209764743
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209918643
+      }
+    ],
+    "8.6 Write component tests for AlertViewer": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209765813
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209915290
+      }
+    ],
+    "8.8 Write component tests for DiscordAlertsPage": [
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209767969
+      },
+      {
+        "executionId": "edd217ad-9377-4242-8d79-e02d320ac072",
+        "chatSessionId": "sess_e7d97f8e-b154-49fc-884e-e64ef031c620",
+        "timestamp": 1788209916237
+      }
+    ]
+  }
+}

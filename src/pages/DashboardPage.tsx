@@ -46,6 +46,13 @@ interface PortfolioStatsData {
   yearlyDividend: number;
 }
 
+// A single cell in the campaign × month matrix: aggregated profit, trades, and wins.
+interface CampaignCell {
+  pl: number;
+  trades: number;
+  wins: number;
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -310,6 +317,42 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
     return t;
   }, [symbolMonthData]);
 
+  // Monthly campaign performance (campaign × month): profit, trades, wins per cell.
+  const campaignMonthData = useMemo(() => {
+    const map = new Map<string, Map<number, CampaignCell>>();
+    for (const e of entries) {
+      if (e.tradeStatus === 'Open') continue;
+      if (!e.closeDate) continue;
+      const campaign = (e.campaign || '').trim();
+      if (!campaign) continue;
+      const d = new Date(e.closeDate);
+      if (d.getFullYear() !== currentYear) continue;
+      const month = d.getMonth();
+      const pl = e.profitLoss ?? 0;
+      if (!map.has(campaign)) map.set(campaign, new Map());
+      const cell = map.get(campaign)!.get(month) ?? { pl: 0, trades: 0, wins: 0 };
+      cell.pl += pl;
+      cell.trades += 1;
+      if (e.winLoss === 'Win') cell.wins += 1;
+      map.get(campaign)!.set(month, cell);
+    }
+    return Array.from(map.entries())
+      .map(([campaign, monthMap]) => {
+        let total = 0, totalTrades = 0, totalWins = 0;
+        for (const c of monthMap.values()) { total += c.pl; totalTrades += c.trades; totalWins += c.wins; }
+        return { campaign, monthMap, total, totalTrades, totalWins };
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [entries, currentYear]);
+
+  const campaignMonthColumnTotals = useMemo(() => {
+    const t = Array.from({ length: 12 }, () => ({ pl: 0, trades: 0, wins: 0 }));
+    for (const { monthMap } of campaignMonthData) {
+      for (const [m, c] of monthMap) { t[m].pl += c.pl; t[m].trades += c.trades; t[m].wins += c.wins; }
+    }
+    return t;
+  }, [campaignMonthData]);
+
   // Sort state for the Income by Symbol table.
   // key: 'symbol' | 'total' | month index (0-11). Default: total descending.
   const [incomeSort, setIncomeSort] = useState<{ key: 'symbol' | 'total' | number; dir: 'asc' | 'desc' }>({ key: 'total', dir: 'desc' });
@@ -339,6 +382,35 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
 
   const sortArrow = (key: 'symbol' | 'total' | number) =>
     incomeSort.key === key ? (incomeSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  // Sort state for the Campaign Monthly Performance table.
+  // key: 'campaign' | 'total' | month index (0-11). Default: total descending.
+  const [campaignMonthSort, setCampaignMonthSort] = useState<{ key: 'campaign' | 'total' | number; dir: 'asc' | 'desc' }>({ key: 'total', dir: 'desc' });
+
+  const handleCampaignMonthSort = (key: 'campaign' | 'total' | number) => {
+    setCampaignMonthSort((prev) => {
+      if (prev.key === key) return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      return { key, dir: key === 'campaign' ? 'asc' : 'desc' };
+    });
+  };
+
+  const campaignMonthSortArrow = (key: 'campaign' | 'total' | number) =>
+    campaignMonthSort.key === key ? (campaignMonthSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  const sortedCampaignMonthData = useMemo(() => {
+    const rows = [...campaignMonthData];
+    const { key, dir } = campaignMonthSort;
+    const factor = dir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      if (key === 'campaign') return a.campaign.localeCompare(b.campaign) * factor;
+      if (key === 'total') return (a.total - b.total) * factor;
+      // Month column: sort by that month's pl, treating missing as 0.
+      const av = a.monthMap.get(key)?.pl ?? 0;
+      const bv = b.monthMap.get(key)?.pl ?? 0;
+      return (av - bv) * factor;
+    });
+    return rows;
+  }, [campaignMonthData, campaignMonthSort]);
 
   // Strategy performance — use name map, fallback to "Unknown Strategy"
   const strategyPerf = useMemo(() => {
@@ -485,6 +557,33 @@ function PlanDetailTab({ stats, entries, plan }: { stats: PlanStatsData; entries
                 <td className="py-2 px-2 font-bold sticky left-0 bg-surface-tertiary">Total</td>
                 {monthTotals.map((mt, idx) => <td key={idx} className={`py-2 px-2 text-right font-bold ${mt !== 0 ? (mt >= 0 ? 'text-success' : 'text-error') : ''}`}>{mt !== 0 ? (mt >= 0 ? '+' : '') + mt.toFixed(0) : ''}</td>)}
                 <td className={`py-2 px-2 text-right font-bold ${monthTotals.reduce((a, b) => a + b, 0) >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(monthTotals.reduce((a, b) => a + b, 0))}</td>
+              </tr></tfoot>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Campaign Monthly Performance */}
+      {campaignMonthData.length > 0 && (
+        <Card title={`${currentYear} Campaign Monthly Performance`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead><tr className="border-b border-border">
+                <th onClick={() => handleCampaignMonthSort('campaign')} className="py-1.5 px-2 text-left text-text-secondary font-medium sticky left-0 bg-surface-secondary z-10 cursor-pointer select-none hover:text-text-primary">Campaign{campaignMonthSortArrow('campaign')}</th>
+                {MONTHS.map((m, idx) => <th key={m} onClick={() => handleCampaignMonthSort(idx)} className="py-1.5 px-2 text-right text-text-secondary font-medium cursor-pointer select-none hover:text-text-primary">{m}{campaignMonthSortArrow(idx)}</th>)}
+                <th onClick={() => handleCampaignMonthSort('total')} className="py-1.5 px-2 text-right text-text-secondary font-medium cursor-pointer select-none hover:text-text-primary">Total{campaignMonthSortArrow('total')}</th>
+              </tr></thead>
+              <tbody>{sortedCampaignMonthData.map(({ campaign, monthMap, total, totalTrades, totalWins }) => (
+                <tr key={campaign} className="border-b border-border/50 hover:bg-surface-tertiary">
+                  <td className="py-1.5 px-2 font-medium text-text-primary sticky left-0 bg-surface-secondary">{campaign}</td>
+                  {MONTHS.map((_, idx) => { const c = monthMap.get(idx); return <td key={idx} className={`py-1.5 px-2 text-right ${c ? (c.pl >= 0 ? 'text-success' : 'text-error') : ''}`} title={c ? `${c.trades} trade(s), ${c.wins} win(s)` : undefined}>{c ? (c.pl >= 0 ? '+' : '') + c.pl.toFixed(0) : ''}</td>; })}
+                  <td className={`py-1.5 px-2 text-right font-bold ${total >= 0 ? 'text-success' : 'text-error'}`} title={`${totalTrades} trade(s), ${totalWins} win(s)`}>{formatProfitLoss(total)}</td>
+                </tr>
+              ))}</tbody>
+              <tfoot><tr className="border-t-2 border-border bg-surface-tertiary">
+                <td className="py-2 px-2 font-bold sticky left-0 bg-surface-tertiary">Total</td>
+                {campaignMonthColumnTotals.map((ct, idx) => <td key={idx} className={`py-2 px-2 text-right font-bold ${ct.pl !== 0 ? (ct.pl >= 0 ? 'text-success' : 'text-error') : ''}`} title={`${ct.trades} trade(s), ${ct.wins} win(s)`}>{ct.pl !== 0 ? (ct.pl >= 0 ? '+' : '') + ct.pl.toFixed(0) : ''}</td>)}
+                <td className={`py-2 px-2 text-right font-bold ${campaignMonthColumnTotals.reduce((a, b) => a + b.pl, 0) >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(campaignMonthColumnTotals.reduce((a, b) => a + b.pl, 0))}</td>
               </tr></tfoot>
             </table>
           </div>

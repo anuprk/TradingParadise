@@ -5,6 +5,7 @@ import {
   FileText,
   Briefcase,
   Bell,
+  BellRing,
   StickyNote,
   ChevronLeft,
   ChevronRight,
@@ -18,6 +19,7 @@ import { usePlanStore } from '../../stores/planStore';
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/journal', label: 'Journal', icon: BookOpen },
+  { to: '/discord-alerts', label: 'Alerts', icon: BellRing },
   { to: '/positions', label: 'Positions', icon: Target },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/plans', label: 'Plans', icon: FileText },
@@ -59,10 +61,8 @@ export default function Sidebar() {
         {/* Plan Selector */}
         {!collapsed && plans.length > 0 && (
           <div className="p-2 border-b border-border">
-            <label htmlFor="sidebar-plan-select" className="text-[10px] text-text-secondary uppercase font-medium px-1">Plan</label>
+            <label className="text-[10px] text-text-secondary uppercase font-medium px-1">Plan</label>
             <select
-              id="sidebar-plan-select"
-              aria-label="Select trading plan"
               value={activePlanId ?? ''}
               onChange={(e) => setActivePlanId(e.target.value || null)}
               className="w-full mt-1 px-2 py-1.5 text-xs rounded border border-border bg-input-bg text-text-primary truncate"
