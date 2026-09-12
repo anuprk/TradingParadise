@@ -151,9 +151,11 @@ export default function HoldingsTab({ portfolioId }: HoldingsTabProps) {
 
   const sortIndicator = (field: string) => sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
-  // Filter: only show holdings with qty > 0
+  // Show all holdings, including newly added ones with quantity 0 so they
+  // can be configured immediately. Use the existing delete (X) action to
+  // remove a holding you no longer want to track.
   const visibleHoldings = useMemo(() => {
-    const filtered = holdings.filter((h) => h.quantity > 0);
+    const filtered = holdings;
     return [...filtered].sort((a, b) => {
       const quotes2 = quotes;
       let aVal: number | string = '';
