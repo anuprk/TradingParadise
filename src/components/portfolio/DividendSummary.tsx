@@ -7,6 +7,7 @@ import { fetchStockQuotes, type StockQuote } from '../../utils/stockPrice';
 import { getHoldings, type PortfolioHolding } from '../../db/holdingsRepository';
 import { getTransactionsByPortfolioFiltered } from '../../db/transactionRepository';
 import type { PortfolioTransaction } from '../../types/transaction';
+import DividendCharts from './DividendCharts';
 
 interface DividendSummaryProps {
   portfolioId: string;
@@ -307,6 +308,10 @@ export default function DividendSummary({ portfolioId }: DividendSummaryProps) {
             </table>
           </div>
         </Card>
+      )}
+
+      {dividendHoldings.length > 0 && (
+        <DividendCharts dividendHoldings={dividendHoldings} actualDividends={actualDividends} totals={totals} />
       )}
 
       {dividendHoldings.length === 0 && quotes.size > 0 && (

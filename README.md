@@ -59,6 +59,8 @@ supabase/migrations/007_dividend_calendar.sql
 supabase/migrations/008_portfolio_holdings.sql
 supabase/migrations/009_add_dividend_yield_to_holdings.sql
 supabase/migrations/010_decouple_portfolio_from_plan.sql
+supabase/migrations/011_add_stock_transaction_support.sql
+supabase/migrations/012_discord_trade_alerts.sql
 ```
 
 Or use the Supabase CLI:

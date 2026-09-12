@@ -4,6 +4,7 @@ import { fetchStockQuotes, type StockQuote } from '../../utils/stockPrice';
 import { getHoldings, upsertHolding, updateHoldingField, bulkUpdatePrices, type PortfolioHolding } from '../../db/holdingsRepository';
 import Button from '../ui/Button';
 import { Plus, X } from 'lucide-react';
+import { useAppStore } from '../../stores/appStore';
 
 interface HoldingsTabProps {
   portfolioId: string;
@@ -46,7 +47,9 @@ export default function HoldingsTab({ portfolioId }: HoldingsTabProps) {
           return p ? { ...h, currentPrice: p } : h;
         }));
       }
-    } catch {}
+    } catch (err) {
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to refresh prices', 'error');
+    }
     setIsRefreshing(false);
   }, [holdings, portfolioId]);
 
@@ -62,7 +65,9 @@ export default function HoldingsTab({ portfolioId }: HoldingsTabProps) {
     if (existing) clearTimeout(existing);
     const timer = setTimeout(async () => {
       debounceTimers.current.delete(key);
-      await updateHoldingField(portfolioId, symbol, field, value).catch(() => {});
+      await updateHoldingField(portfolioId, symbol, field, value).catch((err) => {
+        useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to save change', 'error');
+      });
     }, 600);
     debounceTimers.current.set(key, timer);
   }, [portfolioId]);
@@ -72,16 +77,24 @@ export default function HoldingsTab({ portfolioId }: HoldingsTabProps) {
     if (!newSymbol.trim()) return;
     const symbol = newSymbol.trim().toUpperCase();
     if (holdings.some((h) => h.symbol === symbol)) { setNewSymbol(''); return; }
-    await upsertHolding(portfolioId, symbol, { quantity: 0, avgCost: 0, dividendFrequency: 'monthly' });
-    setHoldings((prev) => [...prev, { id: '', portfolioId, symbol, quantity: 0, avgCost: 0, currentPrice: null, dividendFrequency: 'monthly', dividendYield: null, createdAt: new Date(), updatedAt: new Date() }]);
-    setNewSymbol('');
+    try {
+      await upsertHolding(portfolioId, symbol, { quantity: 0, avgCost: 0, dividendFrequency: 'monthly' });
+      setHoldings((prev) => [...prev, { id: '', portfolioId, symbol, quantity: 0, avgCost: 0, currentPrice: null, dividendFrequency: 'monthly', dividendYield: null, createdAt: new Date(), updatedAt: new Date() }]);
+      setNewSymbol('');
+    } catch (err) {
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to add holding', 'error');
+    }
   }, [newSymbol, portfolioId, holdings]);
 
   // Delete holding
   const removeHolding = useCallback(async (symbol: string) => {
-    const { deleteHolding: del } = await import('../../db/holdingsRepository');
-    await del(portfolioId, symbol);
-    setHoldings((prev) => prev.filter((h) => h.symbol !== symbol));
+    try {
+      const { deleteHolding: del } = await import('../../db/holdingsRepository');
+      await del(portfolioId, symbol);
+      setHoldings((prev) => prev.filter((h) => h.symbol !== symbol));
+    } catch (err) {
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to remove holding', 'error');
+    }
   }, [portfolioId]);
 
   // Buy/Sell trade action
@@ -111,12 +124,16 @@ export default function HoldingsTab({ portfolioId }: HoldingsTabProps) {
       newAvgCost = holding.avgCost; // avg cost doesn't change on sell
     }
 
-    await updateHoldingField(portfolioId, tradeAction.symbol, 'quantity', newQty);
-    await updateHoldingField(portfolioId, tradeAction.symbol, 'avgCost', newAvgCost);
-    setHoldings((prev) => prev.map((h) => h.symbol === tradeAction.symbol ? { ...h, quantity: newQty, avgCost: newAvgCost } : h));
-    setTradeAction(null);
-    setTradeQty('');
-    setTradePrice('');
+    try {
+      await updateHoldingField(portfolioId, tradeAction.symbol, 'quantity', newQty);
+      await updateHoldingField(portfolioId, tradeAction.symbol, 'avgCost', newAvgCost);
+      setHoldings((prev) => prev.map((h) => h.symbol === tradeAction.symbol ? { ...h, quantity: newQty, avgCost: newAvgCost } : h));
+      setTradeAction(null);
+      setTradeQty('');
+      setTradePrice('');
+    } catch (err) {
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to execute trade', 'error');
+    }
   }, [tradeAction, tradeQty, tradePrice, holdings, portfolioId]);
 
   // Sorting
