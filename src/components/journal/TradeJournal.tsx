@@ -28,6 +28,18 @@ function toDateInput(date: Date | undefined | null): string {
   }
 }
 
+/**
+ * Notional exposure: the dollar value of the underlying position at risk.
+ * Options: strike price × 100 (contract multiplier) × contracts.
+ * Stock: entry price × quantity.
+ */
+function getNotionalExposure(entry: TradeJournalEntry): number {
+  if (entry.instrumentType === 'Stock') {
+    return (entry.stockPriceDOC || 0) * (entry.quantity || 0);
+  }
+  return (entry.strikePrice || 0) * 100 * (entry.contracts || 1);
+}
+
 export default function TradeJournal() {
   const { entries, filters, sortField, sortDirection, setSort, setFilters, isLoading, deleteEntry, addEntry, updateEntry, totalCount, currentPage, setPage } = useJournal();
   const { plan } = useTradingPlan();
@@ -123,6 +135,7 @@ export default function TradeJournal() {
         totalPL: items.reduce((s, e) => s + (e.profitLoss ?? 0), 0),
         totalPremiumReceived: items.reduce((s, e) => s + (e.premium * (e.contracts || 1) * 100), 0),
         totalMarginRequired: items.reduce((s, e) => s + (e.marginCashReserve ?? 0), 0),
+        totalNotional: items.reduce((s, e) => s + getNotionalExposure(e), 0),
         count: items.length,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
@@ -185,8 +198,9 @@ export default function TradeJournal() {
 
   const bannerStats = useMemo(() => {
     const totalMarginRequired = allOpenTrades.reduce((s, e) => s + (e.marginCashReserve ?? 0), 0);
+    const totalNotional = allOpenTrades.reduce((s, e) => s + getNotionalExposure(e), 0);
     const totalOpenCount = allOpenTrades.length;
-    return { totalMarginRequired, totalOpenCount, monthlyPL: monthlyClosedPL };
+    return { totalMarginRequired, totalNotional, totalOpenCount, monthlyPL: monthlyClosedPL };
   }, [allOpenTrades, monthlyClosedPL]);
 
   // Debounced save for inline edits
@@ -397,6 +411,10 @@ export default function TradeJournal() {
             <p className="text-lg font-bold text-text-primary">{formatCurrency(bannerStats.totalMarginRequired)}</p>
           </div>
           <div className="text-center">
+            <p className="text-[10px] text-text-secondary uppercase">Total Notional</p>
+            <p className="text-lg font-bold text-text-primary">{formatCurrency(bannerStats.totalNotional)}</p>
+          </div>
+          <div className="text-center">
             <p className="text-[10px] text-text-secondary uppercase">This Month P/L</p>
             <p className={`text-lg font-bold ${bannerStats.monthlyPL >= 0 ? 'text-success' : 'text-error'}`}>{formatProfitLoss(bannerStats.monthlyPL)}</p>
           </div>
@@ -477,6 +495,7 @@ export default function TradeJournal() {
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginAnnualizedROR')}>Margin ROR{sortIndicator('marginAnnualizedROR')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('tradeStatus')}>Status{sortIndicator('tradeStatus')}</th>
                 <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase cursor-pointer" onClick={() => handleSort('marginCashReserve')}>Margin Res{sortIndicator('marginCashReserve')}</th>
+                <th className="px-2 py-2 text-left font-medium text-text-secondary uppercase resize-x overflow-hidden">Notional</th>
               </tr>
             </thead>
             <tbody className="bg-surface-secondary divide-y divide-border">
@@ -503,9 +522,9 @@ export default function TradeJournal() {
                         });
                       }}
                     >
-                      <td colSpan={22} className="px-2 py-1.5 text-xs font-bold text-text-primary">
+                      <td colSpan={24} className="px-2 py-1.5 text-xs font-bold text-text-primary">
                         <span className="inline-block w-4 text-text-secondary">{collapsedGroups.has(group.label) ? '▶' : '▼'}</span>
-                        {group.label} <span className="font-normal text-text-secondary ml-2">({group.count} trades, P/L: <span className={group.totalPL >= 0 ? 'text-success' : 'text-error'}>{formatProfitLoss(group.totalPL)}</span>, Prem Rcvd: {formatCurrency(group.totalPremiumReceived)}, Margin: {formatCurrency(group.totalMarginRequired)})</span>
+                        {group.label} <span className="font-normal text-text-secondary ml-2">({group.count} trades, P/L: <span className={group.totalPL >= 0 ? 'text-success' : 'text-error'}>{formatProfitLoss(group.totalPL)}</span>, Prem Rcvd: {formatCurrency(group.totalPremiumReceived)}, Margin: {formatCurrency(group.totalMarginRequired)}, Notional: {formatCurrency(group.totalNotional)})</span>
                       </td>
                     </tr>
                     {!collapsedGroups.has(group.label) && group.items.map((entry) => (
@@ -538,6 +557,7 @@ export default function TradeJournal() {
                   <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${Math.abs(entry.marginAnnualizedROR).toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1 text-right text-text-secondary">{formatCurrency(getNotionalExposure(entry))}</td>
                 </tr>
                 {showInlineAdd && insertAfterId === entry.id && activePlanId && (
                   <InlineTradeRow
@@ -583,6 +603,7 @@ export default function TradeJournal() {
                   <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${Math.abs(entry.marginAnnualizedROR).toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
+                  <td className="px-2 py-1 text-right text-text-secondary">{formatCurrency(getNotionalExposure(entry))}</td>
                 </tr>
                 {showInlineAdd && insertAfterId === entry.id && activePlanId && (
                   <InlineTradeRow

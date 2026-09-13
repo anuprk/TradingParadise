@@ -395,10 +395,12 @@ export default function InlineTradeRow({
         </td>
         {/* Margin Reserve */}
         <td className="px-2 py-1 text-text-secondary text-xs">—</td>
+        {/* Notional (computed after save) */}
+        <td className="px-2 py-1 text-text-secondary text-xs">—</td>
       </tr>
       {error && (
         <tr className="bg-error/5">
-          <td colSpan={20} className="px-4 py-1 text-xs text-error">
+          <td colSpan={24} className="px-4 py-1 text-xs text-error">
             {error}
           </td>
         </tr>
