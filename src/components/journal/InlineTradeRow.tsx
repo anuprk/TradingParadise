@@ -182,6 +182,12 @@ export default function InlineTradeRow({
         ? Number(form.marginCashReserve)
         : Math.min(strikePrice * 100 * 0.20, 10000);
 
+      // Auto-calculate Notional Exposure: Strike * 100 * Contracts, or 0 for debit
+      // trades (premium < 0). Stock: entry price * quantity.
+      const notionalExposure = isStock
+        ? (Number(form.stockPriceDOC) || 0) * (Number(form.quantity) || 0)
+        : (premium < 0 ? 0 : strikePrice * 100 * contracts);
+
       // Auto-calculate Days Held = Close Date - Open Date
       const daysHeld = form.daysHeld
         ? Number(form.daysHeld)
@@ -228,6 +234,7 @@ export default function InlineTradeRow({
         quantity: isStock ? (Number(form.quantity) || 0) : 0,
         cashReserve: isStock ? (Number(form.stockPriceDOC) || 0) * (Number(form.quantity) || 0) : (Number(form.cashReserve) || 0),
         marginCashReserve,
+        notionalExposure,
         fees: Number(form.fees) || 0,
         exitPrice,
         closeDate,

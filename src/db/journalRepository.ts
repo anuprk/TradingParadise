@@ -87,6 +87,7 @@ function toDbRow(entry: TradeJournalEntry, userId: string) {
     quantity: entry.quantity ?? 0,
     cash_reserve: safeNumericNotNull(entry.cashReserve),
     margin_cash_reserve: safeNumeric(entry.marginCashReserve),
+    notional_exposure: safeNumeric(entry.notionalExposure),
     fees: safeNumericNotNull(entry.fees),
     exit_price: safeNumeric(entry.exitPrice),
     close_date: entry.closeDate ? toDateString(entry.closeDate) : null,
@@ -130,6 +131,7 @@ function fromDbRow(row: Record<string, unknown>): TradeJournalEntry {
     quantity: row.quantity != null ? Number(row.quantity) : 0,
     cashReserve: Number(row.cash_reserve),
     marginCashReserve: row.margin_cash_reserve != null ? Number(row.margin_cash_reserve) : undefined,
+    notionalExposure: row.notional_exposure != null ? Number(row.notional_exposure) : undefined,
     fees: Number(row.fees),
     exitPrice: row.exit_price != null ? Number(row.exit_price) : undefined,
     closeDate: row.close_date ? new Date((row.close_date as string) + 'T12:00:00') : undefined,
@@ -226,6 +228,7 @@ export async function updateJournalEntry(
   if (changes.quantity !== undefined) updatePayload.quantity = changes.quantity;
   if (changes.cashReserve !== undefined) updatePayload.cash_reserve = changes.cashReserve;
   if (changes.marginCashReserve !== undefined) updatePayload.margin_cash_reserve = changes.marginCashReserve;
+  if (changes.notionalExposure !== undefined) updatePayload.notional_exposure = changes.notionalExposure;
   if (changes.fees !== undefined) updatePayload.fees = changes.fees;
   if ('exitPrice' in changes) updatePayload.exit_price = changes.exitPrice ?? null;
   if ('closeDate' in changes) updatePayload.close_date = changes.closeDate ?? null;

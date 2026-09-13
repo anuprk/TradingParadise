@@ -29,14 +29,16 @@ function toDateInput(date: Date | undefined | null): string {
 }
 
 /**
- * Notional exposure: the dollar value of the underlying position at risk.
- * Options: strike price × 100 (contract multiplier) × contracts.
+ * Auto-calculated default notional exposure (before any manual override).
+ * Options: strike price × 100 (contract multiplier) × contracts, or 0 for
+ * debit trades (premium < 0, since risk is already capped by premium paid).
  * Stock: entry price × quantity.
  */
-function getNotionalExposure(entry: TradeJournalEntry): number {
+function computeAutoNotional(entry: Pick<TradeJournalEntry, 'instrumentType' | 'stockPriceDOC' | 'quantity' | 'strikePrice' | 'contracts' | 'premium'>): number {
   if (entry.instrumentType === 'Stock') {
     return (entry.stockPriceDOC || 0) * (entry.quantity || 0);
   }
+  if ((entry.premium ?? 0) < 0) return 0;
   return (entry.strikePrice || 0) * 100 * (entry.contracts || 1);
 }
 
@@ -135,7 +137,7 @@ export default function TradeJournal() {
         totalPL: items.reduce((s, e) => s + (e.profitLoss ?? 0), 0),
         totalPremiumReceived: items.reduce((s, e) => s + (e.premium * (e.contracts || 1) * 100), 0),
         totalMarginRequired: items.reduce((s, e) => s + (e.marginCashReserve ?? 0), 0),
-        totalNotional: items.reduce((s, e) => s + getNotionalExposure(e), 0),
+        totalNotional: items.reduce((s, e) => s + (e.notionalExposure ?? computeAutoNotional(e)), 0),
         count: items.length,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
@@ -198,7 +200,7 @@ export default function TradeJournal() {
 
   const bannerStats = useMemo(() => {
     const totalMarginRequired = allOpenTrades.reduce((s, e) => s + (e.marginCashReserve ?? 0), 0);
-    const totalNotional = allOpenTrades.reduce((s, e) => s + getNotionalExposure(e), 0);
+    const totalNotional = allOpenTrades.reduce((s, e) => s + (e.notionalExposure ?? computeAutoNotional(e)), 0);
     const totalOpenCount = allOpenTrades.length;
     return { totalMarginRequired, totalNotional, totalOpenCount, monthlyPL: monthlyClosedPL };
   }, [allOpenTrades, monthlyClosedPL]);
@@ -230,6 +232,7 @@ export default function TradeJournal() {
         case 'contracts': changes.contracts = Number(value) || 1; break;
         case 'cashReserve': changes.cashReserve = Number(value) || 0; break;
         case 'marginCashReserve': changes.marginCashReserve = value ? Number(value) : undefined; break;
+        case 'notionalExposure': changes.notionalExposure = Number(value) || 0; break;
         case 'exitPrice': changes.exitPrice = (value !== '' && value.trim() !== '') ? Number(value) : undefined; break;
         case 'closeDate': changes.closeDate = value ? new Date(value + 'T12:00:00') : undefined; break;
         case 'tradeStatus': {
@@ -272,6 +275,19 @@ export default function TradeJournal() {
         const autoCalcValue = (entry.strikePrice ?? 0) * 100 * 0.20;
         if (!currentMargin || Math.abs(currentMargin - autoCalcValue) < 1) {
           changes.marginCashReserve = Math.min(strikePrice * 100 * 0.20, 10000);
+        }
+      }
+      // Notional Exposure = Strike * 100 * Contracts (0 for debit trades, premium < 0);
+      // Stock = entry price * quantity. Only auto-calc if not manually overridden.
+      if (field !== 'notionalExposure') {
+        const isStockEntry = (entry.instrumentType ?? 'Option') === 'Stock';
+        const stockPrice = changes.stockPriceDOC ?? entry.stockPriceDOC ?? 0;
+        const priorAutoNotional = computeAutoNotional(entry);
+        const currentNotional = entry.notionalExposure;
+        if (currentNotional == null || Math.abs(currentNotional - priorAutoNotional) < 1) {
+          changes.notionalExposure = isStockEntry
+            ? stockPrice * (entry.quantity ?? 0)
+            : (premium < 0 ? 0 : strikePrice * 100 * contracts);
         }
       }
       if (closeDate && openDate) {
@@ -557,7 +573,7 @@ export default function TradeJournal() {
                   <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${Math.abs(entry.marginAnnualizedROR).toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
-                  <td className="px-2 py-1 text-right text-text-secondary">{formatCurrency(getNotionalExposure(entry))}</td>
+                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.notionalExposure ?? computeAutoNotional(entry)} onBlur={(e) => saveField(entry.id, 'notionalExposure', e.target.value, entry)} /></td>
                 </tr>
                 {showInlineAdd && insertAfterId === entry.id && activePlanId && (
                   <InlineTradeRow
@@ -603,7 +619,7 @@ export default function TradeJournal() {
                   <td className="px-2 py-1 text-text-secondary">{entry.marginAnnualizedROR != null ? `${Math.abs(entry.marginAnnualizedROR).toFixed(1)}%` : '—'}</td>
                   <td className="px-2 py-1"><select className={sc + ' w-18'} defaultValue={entry.tradeStatus} onChange={(e) => saveField(entry.id, 'tradeStatus', e.target.value, entry)}><option value="Open">Open</option><option value="Closed">Closed</option><option value="Expired">Expired</option><option value="Assigned">Assigned</option></select></td>
                   <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.marginCashReserve ?? ''} onBlur={(e) => saveField(entry.id, 'marginCashReserve', e.target.value, entry)} /></td>
-                  <td className="px-2 py-1 text-right text-text-secondary">{formatCurrency(getNotionalExposure(entry))}</td>
+                  <td className="px-2 py-1"><input type="number" step="0.01" className={ic + ' w-16'} defaultValue={entry.notionalExposure ?? computeAutoNotional(entry)} onBlur={(e) => saveField(entry.id, 'notionalExposure', e.target.value, entry)} /></td>
                 </tr>
                 {showInlineAdd && insertAfterId === entry.id && activePlanId && (
                   <InlineTradeRow

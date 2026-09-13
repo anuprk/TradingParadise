@@ -29,6 +29,7 @@ export interface TradeJournalEntry {
   quantity: number;                    // Number of shares (for stocks)
   cashReserve: number;
   marginCashReserve?: number;
+  notionalExposure?: number;
   fees: number;
   exitPrice?: number;
   closeDate?: Date;
